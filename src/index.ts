@@ -10,18 +10,6 @@ import { VERSION } from './version.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Display banner on startup
-console.log(`
-┌───────────────────────────────────────────────┐
-│                                               │
-│     Claude Desktop Commander v${VERSION}        │
-│                                               │
-│     Created by Wong Fei                       │
-│     https://github.com/wongfei2009            │
-│                                               │
-└───────────────────────────────────────────────┘
-`);
-
 async function runSetup() {
   const setupScript = join(__dirname, 'setup-claude-server.js');
   const { default: setupModule } = await import(setupScript);

@@ -6,7 +6,6 @@
 - Renamed package to @wongfei2009/claude-desktop-commander
 - Updated documentation and removed old testimonials
 - Fixed setup script to use the new package name
-- Added startup banner
 - Improved configuration for cross-platform support
 - Acknowledged original creator in CREDITS.md
 

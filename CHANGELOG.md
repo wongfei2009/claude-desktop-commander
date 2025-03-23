@@ -2,7 +2,9 @@
 
 ## 0.2.1 (2025-03-23)
 
-- Version bump for maintenance release
+- Added documentation for manually configuring Claude Desktop
+- Improved installation instructions with multiple options
+- Enhanced troubleshooting section in documentation
 - Minor improvements and bug fixes
 
 ## 0.2.0 (2025-03-23)

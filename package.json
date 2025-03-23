@@ -25,10 +25,16 @@
     "setup": "npm install && npm run build && node setup-claude-server.js",
     "prepare": "npm run build",
     "test": "node test/test.js",
+    "test:unit": "node test/test.js test/unit",
+    "test:integration": "node test/test.js test/integration",
     "test:watch": "nodemon test/test.js",
+    "test:coverage": "c8 node test/test.js",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
     "link:local": "npm run build && npm link",
     "unlink:local": "npm unlink",
-    "inspector": "npx @modelcontextprotocol/inspector dist/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector dist/index.js",
+    "docs": "typedoc --out docs/api src"
   },
   "publishConfig": {
     "access": "public"

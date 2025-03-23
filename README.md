@@ -10,7 +10,12 @@ A powerful MCP server that enables the Claude Desktop app to execute terminal co
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Terminal Commands](#terminal-commands)
+  - [File Operations](#file-operations)
+  - [Code Editing](#code-editing)
 - [Handling Long-Running Commands](#handling-long-running-commands)
+- [Security](#security)
+- [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -18,17 +23,20 @@ This server allows Claude desktop app to execute terminal commands on your compu
 
 ## Features
 
-- Execute terminal commands with output streaming
-- Command timeout and background execution support
-- Process management (list and kill processes)
-- Session management for long-running commands
-- Full filesystem operations:
+- **Terminal Integration**
+  - Execute terminal commands with output streaming
+  - Command timeout and background execution support
+  - Process management (list and kill processes)
+  - Session management for long-running commands
+
+- **Filesystem Operations**
   - Read/write files
   - Create/list directories
   - Move files/directories
   - Search files
   - Get file metadata
-- Code editing capabilities:
+
+- **Code Editing Capabilities**
   - Surgical text replacements for small changes
   - Full file rewrites for major changes
   - Multiple file support
@@ -45,55 +53,49 @@ npm run setup
 ```
 2. Restart Claude if it's running.
 
-The setup command will:
-- Install dependencies
-- Build the server
-- Configure Claude's desktop app
-- Add MCP servers to Claude's config if needed
+For more detailed installation instructions, see the [installation guide](./docs/installation.md).
 
 ## Usage
 
-The server provides these tool categories:
+The server provides three main categories of tools:
 
-### Terminal Tools
-- `execute_command`: Run commands with configurable timeout
-- `read_output`: Get output from long-running commands
-- `force_terminate`: Stop running command sessions
-- `list_sessions`: View active command sessions
-- `list_processes`: View system processes
-- `kill_process`: Terminate processes by PID
-- `block_command`/`unblock_command`: Manage command blacklist
+### Terminal Commands
 
-### Filesystem Tools
-- `read_file`/`write_file`: File operations
-- `create_directory`/`list_directory`: Directory management  
-- `move_file`: Move/rename files
-- `search_files`: Pattern-based file search
-- `get_file_info`: File metadata
+Ask Claude to run terminal commands directly:
 
-### Edit Tools
-- `edit_block`: Apply surgical text replacements (best for changes <20% of file size)
-- `write_file`: Complete file rewrites (best for large changes >20% or when edit_block fails)
-
-Search/Replace Block Format:
 ```
-filepath.ext
-<<<<<<< SEARCH
-existing code to replace
-=======
-new code to insert
->>>>>>> REPLACE
+Please run 'ls -la' on my computer.
 ```
 
-Example:
 ```
-src/main.js
-<<<<<<< SEARCH
-console.log("old message");
-=======
-console.log("new message");
->>>>>>> REPLACE
+Can you check how much disk space I have available with 'df -h'?
 ```
+
+For a comprehensive list of terminal commands, see the [Terminal Tools documentation](./docs/terminal-tools.md).
+
+### File Operations
+
+Ask Claude to perform file operations:
+
+```
+Please list all JavaScript files in my current project.
+```
+
+```
+Can you create a new directory named 'backup' and move all my log files there?
+```
+
+For all available file operations, see the [Filesystem Tools documentation](./docs/filesystem-tools.md).
+
+### Code Editing
+
+Claude can make targeted changes to your code files:
+
+```
+Please update the greeting message in src/main.js to say "Welcome to the application!" instead of the current message.
+```
+
+For edit commands and best practices, see the [Edit Tools documentation](./docs/edit-tools.md).
 
 ## Handling Long-Running Commands
 
@@ -103,6 +105,51 @@ For commands that may take a while:
 2. Command continues in background
 3. Use `read_output` with PID to get new output
 4. Use `force_terminate` to stop if needed
+
+Example dialogue:
+```
+You: Can you run a long-running command like 'find / -name "*.js" 2>/dev/null'?
+
+Claude: I'll run that command for you. It might take some time because it's searching the entire file system...
+[Initial output appears]
+The command is still running in the background with PID 12345. I can check for more output if you ask.
+
+You: Can you check if there are more results?
+
+Claude: Here are the additional results that have come in since last time...
+```
+
+## Security
+
+Claude Desktop Commander includes several security features:
+
+- **Command Blacklisting**: Block potentially destructive commands
+- **Path Validation**: Prevent access to sensitive directories
+- **Permission Controls**: Run with minimal required permissions
+
+For secure usage:
+1. Use the command blacklist to prevent dangerous commands
+2. Avoid running as root/administrator unless necessary
+3. Keep the package updated for security patches
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Command Not Found**
+   - Ensure the command is installed on your system
+   - Check your PATH environment variable
+
+2. **Permission Denied**
+   - Commands are run with your user permissions
+   - Some operations may require elevated privileges
+
+3. **Claude Can't Access Files**
+   - Verify file paths are correct
+   - Check file permissions
+   - Ensure you're not trying to access restricted locations
+
+For more troubleshooting tips, see the [installation guide](./docs/installation.md#troubleshooting).
 
 ## Contributing
 

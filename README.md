@@ -11,13 +11,10 @@ A powerful MCP server that enables the Claude Desktop app to execute terminal co
 - [Installation](#installation)
 - [Usage](#usage)
 - [Handling Long-Running Commands](#handling-long-running-commands)
-- [Work in Progress and TODOs](#work-in-progress-and-todos)
-- [Resources](#resources)
-- [Feedback](#feedback)
 - [Contributing](#contributing)
 - [License](#license)
 
-This server allows Claude desktop app to execute long-running terminal commands on your computer and manage processes through Model Context Protocol (MCP). It builds on top of [MCP Filesystem Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) to provide additional search and replace file editing capabilities.
+This server allows Claude desktop app to execute terminal commands on your computer and manage processes through Model Context Protocol (MCP). It builds on top of [MCP Filesystem Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) to provide additional search and replace file editing capabilities.
 
 ## Features
 
@@ -31,50 +28,22 @@ This server allows Claude desktop app to execute long-running terminal commands 
   - Move files/directories
   - Search files
   - Get file metadata
-  - Code editing capabilities:
+- Code editing capabilities:
   - Surgical text replacements for small changes
   - Full file rewrites for major changes
   - Multiple file support
   - Pattern-based replacements
 
 ## Installation
-First, ensure you've downloaded and installed the [Claude Desktop app](https://claude.ai/download) and you have [npm installed](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
 
-### Option 1: Install via NPX
-Run this command in your terminal:
-```bash
-npx @wongfei2009/claude-desktop-commander setup
-```
-Restart Claude if it's running.
-
-### Option 2: Add to claude_desktop_config manually
-Add this entry to your claude_desktop_config.json:
-- On Mac: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
-- On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "claude-desktop-commander": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@wongfei2009/claude-desktop-commander"
-      ]
-    }
-  }
-}
-```
-Restart Claude if it's running.
-
-### Option 3: Install from source
+### Install from Source
 1. Clone and build:
 ```bash
 git clone https://github.com/wongfei2009/claude-desktop-commander.git
 cd claude-desktop-commander
 npm run setup
 ```
-Restart Claude if it's running.
+2. Restart Claude if it's running.
 
 The setup command will:
 - Install dependencies
@@ -135,48 +104,6 @@ For commands that may take a while:
 3. Use `read_output` with PID to get new output
 4. Use `force_terminate` to stop if needed
 
-## Model Context Protocol Integration
-
-This project extends the MCP Filesystem Server to enable:
-- Local server support in Claude Desktop
-- Full system command execution
-- Process management
-- File operations
-- Code editing with search/replace blocks
-
-## Work in Progress and TODOs
-
-The following features are currently being developed or planned:
-
-- **Better code search** - Enhanced code exploration with context-aware results
-- **Better configurations** - Improved settings for allowed paths, commands and shell environment
-- **Cross-platform improvements** - Better support for Windows, Linux, and macOS
-- **Support for WSL** - Windows Subsystem for Linux integration
-- **Support for SSH** - Remote server command execution
-- **Installation troubleshooting guide** - Comprehensive help for setup issues
-- **Security enhancements** - Improved security controls and permissions
-
-## Resources
-
-### Getting Started Guide
-- Coming soon: A comprehensive guide to using Claude Desktop Commander effectively
-
-### Video Tutorials
-- Coming soon: Video tutorials for setup and usage
-
-### Related Projects
-- [Original project by Eduard Ruzga](https://github.com/wonderwhy-er/ClaudeComputerCommander)
-
-## Feedback
-
-Have you used Claude Desktop Commander? Your feedback would be valuable! Please consider:
-
-1. Opening an issue with your experience
-2. Submitting a pull request with improvements
-3. Starring the repository if you find it useful
-
-Future testimonials from users will be featured here.
-
 ## Contributing
 
 If you find this project useful, please consider giving it a ⭐ star on GitHub! This helps others discover the project and encourages further development.
@@ -186,7 +113,6 @@ Contributions are welcome! Whether you've found a bug, have a feature request, o
 - **Found a bug?** Open an issue at [github.com/wongfei2009/claude-desktop-commander/issues](https://github.com/wongfei2009/claude-desktop-commander/issues)
 - **Have a feature idea?** Submit a feature request in the issues section
 - **Want to contribute code?** Fork the repository, create a branch, and submit a pull request
-- **Questions or discussions?** Start a discussion in the GitHub Discussions tab
 
 All contributions, big or small, are greatly appreciated!
 

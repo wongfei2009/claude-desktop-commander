@@ -44,6 +44,12 @@ This server allows Claude desktop app to execute terminal commands on your compu
 
 ## Installation
 
+### Quick Install
+```bash
+npm install -g @wongfei2009/claude-desktop-commander
+npx @wongfei2009/claude-desktop-commander
+```
+
 ### Install from Source
 1. Clone and build:
 ```bash
@@ -53,7 +59,10 @@ npm run setup
 ```
 2. Restart Claude if it's running.
 
-For more detailed installation instructions, see the [installation guide](./docs/installation.md).
+### Manual Configuration
+You can also manually configure Claude Desktop to use this MCP server. See the [installation guide](./docs/installation.md#option-3-manual-configuration) for detailed instructions.
+
+For all installation options and troubleshooting, see the complete [installation guide](./docs/installation.md).
 
 ## Usage
 

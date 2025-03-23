@@ -1,11 +1,11 @@
 {
-  "name": "@wonderwhy-er/desktop-commander",
-  "version": "0.1.19",
-  "description": "MCP server for terminal operations and file editing",
+  "name": "@wongfei2009/claude-desktop-commander",
+  "version": "0.2.0",
+  "description": "MCP server for terminal operations and file editing with Claude AI",
   "license": "MIT",
-  "author": "Eduards Ruzga",
-  "homepage": "https://github.com/wonderwhy-er/ClaudeComputerCommander",
-  "bugs": "https://github.com/wonderwhy-er/ClaudeComputerCommander/issues",
+  "author": "Wong Fei",
+  "homepage": "https://github.com/wongfei2009/claude-desktop-commander",
+  "bugs": "https://github.com/wongfei2009/claude-desktop-commander/issues",
   "type": "module",
   "bin": {
     "desktop-commander": "dist/index.js",

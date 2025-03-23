@@ -1,14 +1,10 @@
-# Claude Desktop Commander MCP
+# Claude Desktop Commander
 
-[![npm downloads](https://img.shields.io/npm/dw/@wonderwhy-er/desktop-commander)](https://www.npmjs.com/package/@wonderwhy-er/desktop-commander)
-[![smithery badge](https://smithery.ai/badge/@wonderwhy-er/desktop-commander)](https://smithery.ai/server/@wonderwhy-er/desktop-commander)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://www.buymeacoffee.com/wonderwhyer)
+[![npm version](https://img.shields.io/npm/v/@wongfei2009/claude-desktop-commander)](https://www.npmjs.com/package/@wongfei2009/claude-desktop-commander)
+[![npm downloads](https://img.shields.io/npm/dw/@wongfei2009/claude-desktop-commander)](https://www.npmjs.com/package/@wongfei2009/claude-desktop-commander)
+[![GitHub](https://img.shields.io/github/license/wongfei2009/claude-desktop-commander)](https://github.com/wongfei2009/claude-desktop-commander/blob/main/LICENSE)
 
-Short version. Two key things. Terminal commands and diff based file editing.
-
-<a href="https://glama.ai/mcp/servers/zempur9oh4">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/zempur9oh4/badge" alt="Claude Desktop Commander MCP server" />
-</a>
+A powerful MCP server that enables the Claude Desktop app to execute terminal commands and perform diff-based file editing on your computer.
 
 ## Table of Contents
 - [Features](#features)
@@ -16,12 +12,12 @@ Short version. Two key things. Terminal commands and diff based file editing.
 - [Usage](#usage)
 - [Handling Long-Running Commands](#handling-long-running-commands)
 - [Work in Progress and TODOs](#work-in-progress-and-todos)
-- [Media links](#media)
-- [Testimonials](#testimonials)
+- [Resources](#resources)
+- [Feedback](#feedback)
 - [Contributing](#contributing)
 - [License](#license)
 
-This is server that allows Claude desktop app to execute long-running terminal commands on your computer and manage processes through Model Context Protocol (MCP) + Built on top of [MCP Filesystem Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) to provide additional search and replace file editing capabilities .
+This server allows Claude desktop app to execute long-running terminal commands on your computer and manage processes through Model Context Protocol (MCP). It builds on top of [MCP Filesystem Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) to provide additional search and replace file editing capabilities.
 
 ## Features
 
@@ -44,46 +40,41 @@ This is server that allows Claude desktop app to execute long-running terminal c
 ## Installation
 First, ensure you've downloaded and installed the [Claude Desktop app](https://claude.ai/download) and you have [npm installed](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
 
-### Option 1: Installing via Smithery
-
-To install Desktop Commander for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@wonderwhy-er/desktop-commander):
-
+### Option 1: Install via NPX
+Run this command in your terminal:
 ```bash
-npx -y @smithery/cli install @wonderwhy-er/desktop-commander --client claude
+npx @wongfei2009/claude-desktop-commander setup
 ```
+Restart Claude if it's running.
 
-### Option 2: Install trough npx
-Just run this in terminal
-```
-npx @wonderwhy-er/desktop-commander setup
-```
-Restart Claude if running
+### Option 2: Add to claude_desktop_config manually
+Add this entry to your claude_desktop_config.json:
+- On Mac: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+- On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 
-### Option 3: Add to claude_desktop_config by hand
-Add this entry to your claude_desktop_config.json (on Mac, found at ~/Library/Application\ Support/Claude/claude_desktop_config.json):
 ```json
 {
   "mcpServers": {
-    "desktop-commander": {
+    "claude-desktop-commander": {
       "command": "npx",
       "args": [
         "-y",
-        "@wonderwhy-er/desktop-commander"
+        "@wongfei2009/claude-desktop-commander"
       ]
     }
   }
 }
 ```
-Restart Claude if running
+Restart Claude if it's running.
 
-### Option 4: Checkout locally
+### Option 3: Install from source
 1. Clone and build:
 ```bash
-git clone https://github.com/wonderwhy-er/ClaudeComputerCommander.git
-cd ClaudeComputerCommander
+git clone https://github.com/wongfei2009/claude-desktop-commander.git
+cd claude-desktop-commander
 npm run setup
 ```
-Restart Claude if running
+Restart Claude if it's running.
 
 The setup command will:
 - Install dependencies
@@ -153,66 +144,51 @@ This project extends the MCP Filesystem Server to enable:
 - File operations
 - Code editing with search/replace blocks
 
-Created as part of exploring Claude MCPs: https://youtube.com/live/TlbjFDbl5Us
-
 ## Work in Progress and TODOs
 
 The following features are currently being developed or planned:
 
-- **Better code search** ([in progress](https://github.com/wonderwhy-er/ClaudeDesktopCommander/pull/17)) - Enhanced code exploration with context-aware results
-- **Better configurations** ([in progress](https://github.com/wonderwhy-er/ClaudeDesktopCommander/pull/16)) - Improved settings for allowed paths, commands and shell environment
-- **Windows environment fixes** ([in progress](https://github.com/wonderwhy-er/ClaudeDesktopCommander/pull/13)) - Resolving issues specific to Windows platforms
-- **Linux improvements** ([in progress](https://github.com/wonderwhy-er/ClaudeDesktopCommander/pull/12)) - Enhancing compatibility with various Linux distributions
+- **Better code search** - Enhanced code exploration with context-aware results
+- **Better configurations** - Improved settings for allowed paths, commands and shell environment
+- **Cross-platform improvements** - Better support for Windows, Linux, and macOS
 - **Support for WSL** - Windows Subsystem for Linux integration
 - **Support for SSH** - Remote server command execution
 - **Installation troubleshooting guide** - Comprehensive help for setup issues
+- **Security enhancements** - Improved security controls and permissions
 
-## Media
-Learn more about this project through these resources:
+## Resources
 
-### Article
-[Claude with MCPs replaced Cursor & Windsurf. How did that happen?](https://wonderwhy-er.medium.com/claude-with-mcps-replaced-cursor-windsurf-how-did-that-happen-c1d1e2795e96) - A detailed exploration of how Claude with Model Context Protocol capabilities is changing developer workflows.
+### Getting Started Guide
+- Coming soon: A comprehensive guide to using Claude Desktop Commander effectively
 
-### Video
-[Claude Desktop Commander Video Tutorial](https://www.youtube.com/watch?v=ly3bed99Dy8) - Watch how to set up and use the Commander effectively.
+### Video Tutorials
+- Coming soon: Video tutorials for setup and usage
 
-## Testimonials
+### Related Projects
+- [Original project by Eduard Ruzga](https://github.com/wonderwhy-er/ClaudeComputerCommander)
 
-[![It's a life saver! I paid Claude + Cursor currently which I always feel it's kind of duplicated. This solves the problem ultimately. I am so happy. Thanks so much. Plus today Claude has added the web search support. With this MCP + Internet search, it writes the code with the latest updates. It's so good when Cursor doesn't work sometimes or all the fast requests are used.](testemonials/img.png) https://www.youtube.com/watch?v=ly3bed99Dy8&lc=UgyyBt6_ShdDX_rIOad4AaABAg
-](https://www.youtube.com/watch?v=ly3bed99Dy8&lc=UgyyBt6_ShdDX_rIOad4AaABAg
-)
+## Feedback
 
-[![This is the first comment I've ever left on a youtube video, THANK YOU! I've been struggling to update an old Flutter app in Cursor from an old pre null-safety version to a current version and implemented null-safety using Claude 3.7. I got most of the way but had critical BLE errors that I spent days trying to resolve with no luck. I tried Augment Code but it didn't get it either. I implemented your MCP in Claude desktop and was able to compare the old and new codebase fully, accounting for the updates in the code, and fix the issues in a couple of hours. A word of advice to people trying this, be sure to stage changes and commit when appropriate to be able to undo unwanted changes. Amazing!](testemonials/img_1.png)
-https://www.youtube.com/watch?v=ly3bed99Dy8&lc=UgztdHvDMqTb9jiqnf54AaABAg](https://www.youtube.com/watch?v=ly3bed99Dy8&lc=UgztdHvDMqTb9jiqnf54AaABAg
-)
+Have you used Claude Desktop Commander? Your feedback would be valuable! Please consider:
 
-[![Great! I just used Windsurf, bought license a week ago, for upgrading old fullstack socket project and it works many times good or ok but also many times runs away in cascade and have to revert all changes loosing hundereds of cascade tokens. In just a week down to less than 100 tokens and do not want to buy only 300 tokens for 10$. This Claude MCP ,bought claude Pro finally needed but wanted very good reason to also have next to ChatGPT, and now can code as much as I want not worrying about token cost.
-Also this is much more than code editing it is much more thank you for great video!](testemonials/img_2.png)
-https://www.youtube.com/watch?v=ly3bed99Dy8&lc=UgyQFTmYLJ4VBwIlmql4AaABAg](https://www.youtube.com/watch?v=ly3bed99Dy8&lc=UgyQFTmYLJ4VBwIlmql4AaABAg)
+1. Opening an issue with your experience
+2. Submitting a pull request with improvements
+3. Starring the repository if you find it useful
 
-[![it is a great tool, thank you, I like using it, as it gives claude an ability to do surgical edits, making it more like a human developer.](testemonials/img_3.png)
-https://www.youtube.com/watch?v=ly3bed99Dy8&lc=Ugy4-exy166_Ma7TH-h4AaABAg](https://www.youtube.com/watch?v=ly3bed99Dy8&lc=Ugy4-exy166_Ma7TH-h4AaABAg)
-
-[![You sir are my hero. You’ve pretty much summed up and described my experiences of late, much better than I could have. Cursor and Windsurf both had me frustrated to the point where I was almost yelling at my computer screen. Out of whimsy, I thought to myself why not just ask Claude directly, and haven’t looked back since.
-Claude first to keep my sanity in check, then if necessary, engage with other IDEs, frameworks, etc. I thought I was the only one, glad to see I’m not lol.
-33
-1](testemonials/img_4.png)
-https://medium.com/@pharmx/you-sir-are-my-hero-62cff5836a3e](https://medium.com/@pharmx/you-sir-are-my-hero-62cff5836a3e)
+Future testimonials from users will be featured here.
 
 ## Contributing
 
 If you find this project useful, please consider giving it a ⭐ star on GitHub! This helps others discover the project and encourages further development.
 
-We welcome contributions from the community! Whether you've found a bug, have a feature request, or want to contribute code, here's how you can help:
+Contributions are welcome! Whether you've found a bug, have a feature request, or want to contribute code, here's how you can help:
 
-- **Found a bug?** Open an issue at [github.com/wonderwhy-er/ClaudeComputerCommander/issues](https://github.com/wonderwhy-er/ClaudeComputerCommander/issues)
+- **Found a bug?** Open an issue at [github.com/wongfei2009/claude-desktop-commander/issues](https://github.com/wongfei2009/claude-desktop-commander/issues)
 - **Have a feature idea?** Submit a feature request in the issues section
 - **Want to contribute code?** Fork the repository, create a branch, and submit a pull request
 - **Questions or discussions?** Start a discussion in the GitHub Discussions tab
 
 All contributions, big or small, are greatly appreciated!
-
-If you find this tool valuable for your workflow, please consider [supporting the project](https://www.buymeacoffee.com/wonderwhyer).
 
 ## License
 

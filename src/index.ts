@@ -5,9 +5,22 @@ import { server } from './server.js';
 import { commandManager } from './command-manager.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { VERSION } from './version.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Display banner on startup
+console.log(`
+┌───────────────────────────────────────────────┐
+│                                               │
+│     Claude Desktop Commander v${VERSION}        │
+│                                               │
+│     Created by Wong Fei                       │
+│     https://github.com/wongfei2009            │
+│                                               │
+└───────────────────────────────────────────────┘
+`);
 
 async function runSetup() {
   const setupScript = join(__dirname, 'setup-claude-server.js');

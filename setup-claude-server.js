@@ -78,7 +78,7 @@ try {
     const serverConfig = isNpx ? {
         "command": "npx",
         "args": [
-            "@wonderwhy-er/desktop-commander"
+            "@wongfei2009/claude-desktop-commander"
         ]
     } : {
         "command": "node",
@@ -92,15 +92,7 @@ try {
         config.mcpServers = {};
     }
     
-    config.mcpServers.desktopCommander = serverConfig;
-
-    // Add puppeteer server if not present
-    /*if (!config.mcpServers.puppeteer) {
-        config.mcpServers.puppeteer = {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
-        };
-    }*/
+    config.mcpServers['claude-desktop-commander'] = serverConfig;
 
     // Write the updated config back
     writeFileSync(claudeConfigPath, JSON.stringify(config, null, 2), 'utf8');

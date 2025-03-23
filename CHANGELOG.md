@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 (2025-03-23)
+
+- Version bump for maintenance release
+- Minor improvements and bug fixes
+
 ## 0.2.0 (2025-03-23)
 
 - First release under new ownership (Wong Fei)

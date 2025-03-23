@@ -1,6 +1,6 @@
 {
   "name": "@wongfei2009/claude-desktop-commander",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server for terminal operations and file editing with Claude AI",
   "license": "MIT",
   "author": "Wong Fei",

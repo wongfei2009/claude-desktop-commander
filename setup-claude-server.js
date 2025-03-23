@@ -92,7 +92,7 @@ try {
         config.mcpServers = {};
     }
     
-    config.mcpServers['claude-desktop-commander'] = serverConfig;
+    config.mcpServers['desktop-commander'] = serverConfig;
 
     // Write the updated config back
     writeFileSync(claudeConfigPath, JSON.stringify(config, null, 2), 'utf8');

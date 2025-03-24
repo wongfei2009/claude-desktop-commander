@@ -43,7 +43,7 @@ import { VERSION } from './version.js';
 
 export const server = new Server(
   {
-    name: "desktop-commander",
+    name: "mcp-desktop-commander",
     version: VERSION,
   },
   {

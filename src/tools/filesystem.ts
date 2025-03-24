@@ -5,8 +5,26 @@ import os from 'os';
 // Store allowed directories
 const allowedDirectories: string[] = [
     process.cwd(), // Current working directory
-    os.homedir()   // User's home directory
 ];
+
+// Add home directory subfolders but exclude Desktop
+const homeDir = os.homedir();
+const desktopDir = path.join(homeDir, 'Desktop');
+
+// Function to add directory to allowed list
+function addAllowedDirectory(dir: string) {
+    // Normalize paths for consistent comparison
+    const normalizedDir = normalizePath(dir);
+    const normalizedDesktop = normalizePath(desktopDir);
+    
+    // Only add if it's not the Desktop folder
+    if (!normalizedDir.startsWith(normalizedDesktop)) {
+        allowedDirectories.push(dir);
+    }
+}
+
+// Add home directory to allowed directories
+addAllowedDirectory(homeDir);
 
 // Normalize all paths consistently
 function normalizePath(p: string): string {
@@ -28,6 +46,12 @@ export async function validatePath(requestedPath: string): Promise<string> {
         : path.resolve(process.cwd(), expandedPath);
         
     const normalizedRequested = normalizePath(absolute);
+    const normalizedDesktop = normalizePath(path.join(os.homedir(), 'Desktop'));
+
+    // Explicitly check for Desktop folder access
+    if (normalizedRequested.startsWith(normalizedDesktop)) {
+        throw new Error(`Access denied - Desktop folder is restricted: ${absolute}`);
+    }
 
     // Check if path is within allowed directories
     const isAllowed = allowedDirectories.some(dir => normalizedRequested.startsWith(normalizePath(dir)));
@@ -39,6 +63,13 @@ export async function validatePath(requestedPath: string): Promise<string> {
     try {
         const realPath = await fs.realpath(absolute);
         const normalizedReal = normalizePath(realPath);
+        const normalizedDesktop = normalizePath(path.join(os.homedir(), 'Desktop'));
+        
+        // Check if symlink resolves to Desktop
+        if (normalizedReal.startsWith(normalizedDesktop)) {
+            throw new Error("Access denied - symlink target resolves to restricted Desktop folder");
+        }
+        
         const isRealPathAllowed = allowedDirectories.some(dir => normalizedReal.startsWith(normalizePath(dir)));
         if (!isRealPathAllowed) {
             throw new Error("Access denied - symlink target outside allowed directories");
@@ -50,6 +81,13 @@ export async function validatePath(requestedPath: string): Promise<string> {
         try {
             const realParentPath = await fs.realpath(parentDir);
             const normalizedParent = normalizePath(realParentPath);
+            const normalizedDesktop = normalizePath(path.join(os.homedir(), 'Desktop'));
+            
+            // Check if parent directory is Desktop
+            if (normalizedParent.startsWith(normalizedDesktop)) {
+                throw new Error("Access denied - parent directory is restricted Desktop folder");
+            }
+            
             const isParentAllowed = allowedDirectories.some(dir => normalizedParent.startsWith(normalizePath(dir)));
             if (!isParentAllowed) {
                 throw new Error("Access denied - parent directory outside allowed directories");
@@ -150,5 +188,8 @@ export async function getFileInfo(filePath: string): Promise<Record<string, any>
 }
 
 export function listAllowedDirectories(): string[] {
-    return allowedDirectories;
+    return [
+        ...allowedDirectories,
+        `RESTRICTED: ${path.join(os.homedir(), 'Desktop')} (Desktop access is disabled)`
+    ];
 }

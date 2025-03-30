@@ -24,6 +24,11 @@ import {
   GetFileInfoArgsSchema,
   EditBlockArgsSchema,
   MultiEditBlocksArgsSchema,
+  BulkMoveFilesArgsSchema,
+  BulkCopyFilesArgsSchema,
+  BulkDeleteFilesArgsSchema,
+  BulkRenameFilesArgsSchema,
+  FindAndReplaceFilenamesArgsSchema,
 } from './tools/schemas.js';
 import { executeCommand, readOutput, forceTerminate, listSessions } from './tools/execute.js';
 import { listProcesses, killProcess } from './tools/process.js';
@@ -37,10 +42,21 @@ import {
   searchFiles,
   getFileInfo,
   listAllowedDirectories,
+  bulkMoveFiles,
+  bulkCopyFiles,
+  bulkDeleteFiles,
+  bulkRenameFiles,
+  findAndReplaceFilenames,
 } from './tools/filesystem.js';
 import { parseEditBlock, performSearchReplace, performMultiEdit } from './tools/edit.js';
 
 import { VERSION } from './version.js';
+
+// Detect testing environment and configure accordingly
+const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('test');
+if (isTesting) {
+  console.log("Running in test environment mode");
+}
 
 export const server = new Server(
   {
@@ -212,6 +228,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "Provides detailed results including success status and match counts for each operation.",
         inputSchema: zodToJsonSchema(MultiEditBlocksArgsSchema),
       },
+      // Bulk file operations tools
+      {
+        name: "bulk_move_files",
+        description:
+          "Move or rename multiple files in a single operation. Supports batch processing with error handling, " +
+          "directory creation, and more. Both source and destination paths must be within allowed directories.",
+        inputSchema: zodToJsonSchema(BulkMoveFilesArgsSchema),
+      },
+      {
+        name: "bulk_copy_files",
+        description:
+          "Copy multiple files in a single operation. Supports batch processing with error handling, " +
+          "directory creation, and more. Both source and destination paths must be within allowed directories.",
+        inputSchema: zodToJsonSchema(BulkCopyFilesArgsSchema),
+      },
+      {
+        name: "bulk_delete_files",
+        description:
+          "Delete multiple files in a single operation. Supports batch processing with recursive deletion, " +
+          "error handling, and detailed reporting. All paths must be within allowed directories.",
+        inputSchema: zodToJsonSchema(BulkDeleteFilesArgsSchema),
+      },
+      {
+        name: "bulk_rename_files",
+        description:
+          "Rename multiple files in a single operation. Supports batch processing with error handling, " +
+          "file extension preservation, and more. All files must be within allowed directories.",
+        inputSchema: zodToJsonSchema(BulkRenameFilesArgsSchema),
+      },
+      {
+        name: "find_and_replace_filenames",
+        description:
+          "Search and replace text in multiple filenames. Supports recursive directory traversal, " +
+          "regex patterns, case sensitivity, and dry runs. All operations within allowed directories.",
+        inputSchema: zodToJsonSchema(FindAndReplaceFilenamesArgsSchema),
+      },
     ],
   };
 });
@@ -373,6 +425,103 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           isError: !result.success,
         };
       }
+      
+      // Bulk file operations tools
+      case "bulk_move_files": {
+        const parsed = BulkMoveFilesArgsSchema.parse(args);
+        const result = await bulkMoveFiles(parsed.operations, parsed.options);
+        
+        const summary = `Bulk move operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "bulk_copy_files": {
+        const parsed = BulkCopyFilesArgsSchema.parse(args);
+        const result = await bulkCopyFiles(parsed.operations, parsed.options);
+        
+        const summary = `Bulk copy operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "bulk_delete_files": {
+        const parsed = BulkDeleteFilesArgsSchema.parse(args);
+        const result = await bulkDeleteFiles(parsed.paths, parsed.options);
+        
+        const summary = `Bulk delete operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "bulk_rename_files": {
+        const parsed = BulkRenameFilesArgsSchema.parse(args);
+        const result = await bulkRenameFiles(parsed.operations, parsed.options);
+        
+        const summary = `Bulk rename operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "find_and_replace_filenames": {
+        const parsed = FindAndReplaceFilenamesArgsSchema.parse(args);
+        const result = await findAndReplaceFilenames(
+          parsed.directory,
+          parsed.pattern,
+          parsed.replacement,
+          parsed.options
+        );
+        
+        const summary = `Find and replace filename operation ${result.success ? 'completed successfully' : 'completed with errors'}${parsed.options?.dryRun ? ' (DRY RUN)' : ''}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

@@ -23,6 +23,12 @@ import {
   SearchFilesArgsSchema,
   GetFileInfoArgsSchema,
   EditBlockArgsSchema,
+  MultiEditBlocksArgsSchema,
+  BulkMoveFilesArgsSchema,
+  BulkCopyFilesArgsSchema,
+  BulkDeleteFilesArgsSchema,
+  BulkRenameFilesArgsSchema,
+  FindAndReplaceFilenamesArgsSchema,
 } from './tools/schemas.js';
 import { executeCommand, readOutput, forceTerminate, listSessions } from './tools/execute.js';
 import { listProcesses, killProcess } from './tools/process.js';
@@ -36,10 +42,21 @@ import {
   searchFiles,
   getFileInfo,
   listAllowedDirectories,
+  bulkMoveFiles,
+  bulkCopyFiles,
+  bulkDeleteFiles,
+  bulkRenameFiles,
+  findAndReplaceFilenames,
 } from './tools/filesystem.js';
-import { parseEditBlock, performSearchReplace } from './tools/edit.js';
+import { parseEditBlock, performSearchReplace, performMultiEdit } from './tools/edit.js';
 
 import { VERSION } from './version.js';
+
+// Detect testing environment and configure accordingly
+const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('test');
+if (isTesting) {
+  console.log("Running in test environment mode");
+}
 
 export const server = new Server(
   {
@@ -58,34 +75,43 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       // Terminal tools
       {
-        name: "execute_command",
+        name: "desktop_cmd_run",
         description:
-          "Execute a terminal command with timeout. Command will continue running in background if it doesn't complete within timeout.",
+          "Execute a terminal command with optional timeout (in milliseconds). If the timeout is reached, " +
+          "the command continues running in the background and can be monitored using desktop_cmd_output. " +
+          "Returns PID and initial output from the command. Use responsibly and avoid potentially " +
+          "destructive commands without user confirmation. Example: {\"command\": \"ls -la\", \"timeout_ms\": 5000}",
         inputSchema: zodToJsonSchema(ExecuteCommandArgsSchema),
       },
       {
-        name: "read_output",
+        name: "desktop_cmd_output",
         description:
-          "Read new output from a running terminal session.",
+          "Read new output from a running terminal session. Use this to get additional output " +
+          "from long-running commands or commands that were started with desktop_cmd_run. " +
+          "Example: {\"pid\": 1234}",
         inputSchema: zodToJsonSchema(ReadOutputArgsSchema),
       },
       {
-        name: "force_terminate",
+        name: "desktop_cmd_terminate",
         description:
-          "Force terminate a running terminal session.",
+          "Force terminate a running terminal session. Use this to stop commands that were started " +
+          "with desktop_cmd_run and are still executing. Example: {\"pid\": 1234}",
         inputSchema: zodToJsonSchema(ForceTerminateArgsSchema),
       },
       {
-        name: "list_sessions",
+        name: "desktop_cmd_list_sessions",
         description:
-          "List all active terminal sessions.",
+          "List all active terminal sessions. Returns a list of PIDs, blocked status, and runtime " +
+          "for commands started with desktop_cmd_run. Useful for managing and monitoring multiple commands.",
         inputSchema: zodToJsonSchema(ListSessionsArgsSchema),
       },
       {
-        name: "list_processes",
+        name: "desktop_proc_list",
         description:
-          "List all running processes. Returns process information including PID, " +
-          "command name, CPU usage, and memory usage.",
+          "List all running processes on the system. Returns process information including PID, " +
+          "command name, CPU usage, and memory usage. Results are formatted as " +
+          "'PID: [pid], Command: [name], CPU: [usage], Memory: [usage]' for each process. " +
+          "Useful for system monitoring and finding resource-intensive processes.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -93,28 +119,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kill_process",
+        name: "desktop_proc_kill",
         description:
           "Terminate a running process by PID. Use with caution as this will " +
-          "forcefully terminate the specified process.",
+          "forcefully terminate the specified process. Should only be used for processes " +
+          "that are unresponsive or causing problems. Example: {\"pid\": 1234}",
         inputSchema: zodToJsonSchema(KillProcessArgsSchema),
       },
       {
-        name: "block_command",
+        name: "desktop_cmd_block",
         description:
-          "Add a command to the blacklist. Once blocked, the command cannot be executed until unblocked.",
+          "Add a command to the blacklist. Once blocked, the command cannot be executed until unblocked. " +
+          "Useful for preventing potentially dangerous commands from being run. Example: {\"command\": \"rm -rf\"}",
         inputSchema: zodToJsonSchema(BlockCommandArgsSchema),
       },
       {
-        name: "unblock_command",
+        name: "desktop_cmd_unblock",
         description:
-          "Remove a command from the blacklist. Once unblocked, the command can be executed normally.",
+          "Remove a command from the blacklist. Once unblocked, the command can be executed normally. " +
+          "Use this to restore functionality for commands that were previously blocked. Example: {\"command\": \"rm -rf\"}",
         inputSchema: zodToJsonSchema(UnblockCommandArgsSchema),
       },
       {
-        name: "list_blocked_commands",
+        name: "desktop_cmd_list_blocked",
         description:
-          "List all currently blocked commands.",
+          "List all currently blocked commands. Returns a newline-separated list of commands " +
+          "that have been blocked using desktop_cmd_block. Useful for reviewing " +
+          "security restrictions before executing commands.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -123,72 +154,82 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       // Filesystem tools
       {
-        name: "read_file",
+        name: "desktop_fs_read",
         description:
-          "Read the complete contents of a file from the file system. " +
+          "[Filesystem] Read the complete contents of a file from the file system. " +
           "Handles various text encodings and provides detailed error messages " +
-          "if the file cannot be read. Only works within allowed directories.",
+          "if the file cannot be read. Only works within allowed directories. " +
+          "Example: {\"path\": \"/home/user/document.txt\"}",
         inputSchema: zodToJsonSchema(ReadFileArgsSchema),
       },
       {
-        name: "read_multiple_files",
+        name: "desktop_fs_read_batch",
         description:
-          "Read the contents of multiple files simultaneously. " +
+          "[Filesystem] Read the contents of multiple files simultaneously. " +
           "Each file's content is returned with its path as a reference. " +
           "Failed reads for individual files won't stop the entire operation. " +
-          "Only works within allowed directories.",
+          "More efficient than multiple individual reads for analyzing multiple files. " +
+          "Only works within allowed directories. Example: {\"paths\": [\"/home/user/file1.txt\", \"/home/user/file2.txt\"]}",
         inputSchema: zodToJsonSchema(ReadMultipleFilesArgsSchema),
       },
       {
-        name: "write_file",
+        name: "desktop_fs_write",
         description:
-          "Completely replace file contents. Best for large changes (>20% of file) or when edit_block fails. " +
-          "Use with caution as it will overwrite existing files. Only works within allowed directories.",
+          "[Filesystem] Completely replace file contents. Best for large changes (>20% of file) or when edit_block fails. " +
+          "Use with caution as it will overwrite existing files. Creates new files if they don't exist. " +
+          "Only works within allowed directories. Example: {\"path\": \"/home/user/file.txt\", \"content\": \"New file content here\"}",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema),
       },
       {
-        name: "create_directory",
+        name: "desktop_fs_mkdir",
         description:
-          "Create a new directory or ensure a directory exists. Can create multiple " +
-          "nested directories in one operation. Only works within allowed directories.",
+          "[Filesystem] Create a new directory or ensure a directory exists. Can create multiple " +
+          "nested directories in one operation (similar to mkdir -p). Won't error if directory already exists. " +
+          "Only works within allowed directories. Example: {\"path\": \"/home/user/new/nested/directory\"}",
         inputSchema: zodToJsonSchema(CreateDirectoryArgsSchema),
       },
       {
-        name: "list_directory",
+        name: "desktop_fs_list",
         description:
-          "Get a detailed listing of all files and directories in a specified path. " +
+          "[Filesystem] Get a detailed listing of all files and directories in a specified path. " +
           "Results distinguish between files and directories with [FILE] and [DIR] prefixes. " +
-          "Only works within allowed directories.",
+          "Useful for exploring directory contents before performing operations. " +
+          "Only works within allowed directories. Example: {\"path\": \"/home/user/documents\"}",
         inputSchema: zodToJsonSchema(ListDirectoryArgsSchema),
       },
       {
-        name: "move_file",
+        name: "desktop_fs_move",
         description:
-          "Move or rename files and directories. Can move files between directories " +
+          "[Filesystem] Move or rename files and directories. Can move files between directories " +
           "and rename them in a single operation. Both source and destination must be " +
-          "within allowed directories.",
+          "within allowed directories. Example: {\"source\": \"/home/user/oldname.txt\", " +
+          "\"destination\": \"/home/user/documents/newname.txt\"}",
         inputSchema: zodToJsonSchema(MoveFileArgsSchema),
       },
       {
-        name: "search_files",
+        name: "desktop_fs_search",
         description:
-          "Recursively search for files and directories matching a pattern. " +
-          "Searches through all subdirectories from the starting path. " +
-          "Only searches within allowed directories.",
+          "[Filesystem] Recursively search for files and directories matching a pattern. " +
+          "Searches through all subdirectories from the starting path. Useful for finding files " +
+          "by name, extension, or partial text match. Returns absolute paths to all matches. " +
+          "Only searches within allowed directories. Example: {\"path\": \"/home/user\", \"pattern\": \".txt\"}",
         inputSchema: zodToJsonSchema(SearchFilesArgsSchema),
       },
       {
-        name: "get_file_info",
+        name: "desktop_fs_stat",
         description:
-          "Retrieve detailed metadata about a file or directory including size, " +
-          "creation time, last modified time, permissions, and type. " +
-          "Only works within allowed directories.",
+          "[Filesystem] Retrieve detailed metadata about a file or directory including size, " +
+          "creation time, last modified time, permissions, and type. Useful for determining file " +
+          "characteristics before performing operations. Returns formatted key-value pairs. " +
+          "Only works within allowed directories. Example: {\"path\": \"/home/user/document.txt\"}",
         inputSchema: zodToJsonSchema(GetFileInfoArgsSchema),
       },
       {
-        name: "list_allowed_directories",
+        name: "desktop_fs_allowed_dirs",
         description: 
-          "Returns the list of directories that this server is allowed to access.",
+          "[Filesystem] Returns the list of directories that this server is allowed to access. " +
+          "Use this to determine which locations are available for file operations before " +
+          "attempting to access potentially restricted areas. Results include notes about restricted locations.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -196,12 +237,73 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "edit_block",
+        name: "desktop_fs_edit_block",
         description:
-            "Apply surgical text replacements to files. Best for small changes (<20% of file size). " +
-            "Multiple blocks can be used for separate changes. Will verify changes after application. " +
-            "Format: filepath, then <<<<<<< SEARCH, content to find, =======, new content, >>>>>>> REPLACE.",
+            "[Filesystem] Apply precise text replacements to files. Best for small to moderate changes (<20% of file size). " +
+            "Multiple blocks can be used for separate changes. Verifies changes succeeded after application. " +
+            "Required format: first line must be the filepath, followed by <<<<<<< SEARCH, then the exact text " +
+            "to find, then =======, then the replacement text, and finally >>>>>>> REPLACE. " +
+            "Example: {\"blockContent\": \"/path/to/file.txt\n<<<<<<< SEARCH\nold text\n=======\nnew text\n>>>>>>> REPLACE\"}",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
+      },
+      {
+        name: "desktop_fs_edit_multi",
+        description:
+            "[Filesystem] Apply multiple surgical text edits across multiple files in a single operation. " +
+            "Supports different operation types: replace, insertBefore, insertAfter, prepend, append. " +
+            "Provides detailed results including success status and match counts for each operation. " +
+            "Arguments include 'edits' (array of file operations) and 'options' (settings like " +
+            "caseSensitive, allOccurrences, and dryRun). More powerful and flexible than desktop_fs_edit_block " +
+            "for complex editing needs.",
+        inputSchema: zodToJsonSchema(MultiEditBlocksArgsSchema),
+      },
+      // Bulk file operations tools
+      {
+        name: "desktop_fs_move_batch",
+        description:
+          "[Filesystem] Move or rename multiple files in a single operation. More efficient than individual move operations " +
+          "for handling many files. Supports error handling (with skipErrors option), automatic directory " +
+          "creation, and detailed reporting. Both source and destination paths must be within allowed directories. " +
+          "Example: {\"operations\": [{\"source\": \"/path1\", \"destination\": \"/newpath1\"}, " +
+          "{\"source\": \"/path2\", \"destination\": \"/newpath2\"}]}",
+        inputSchema: zodToJsonSchema(BulkMoveFilesArgsSchema),
+      },
+      {
+        name: "desktop_fs_copy_batch",
+        description:
+          "[Filesystem] Copy multiple files in a single operation. Preserves original files while creating duplicates " +
+          "at new locations. Supports error handling (with skipErrors option), automatic directory creation, " +
+          "and detailed reporting. Both source and destination paths must be within allowed directories. " +
+          "Example: {\"operations\": [{\"source\": \"/path1\", \"destination\": \"/newpath1\"}, " +
+          "{\"source\": \"/path2\", \"destination\": \"/newpath2\"}]}",
+        inputSchema: zodToJsonSchema(BulkCopyFilesArgsSchema),
+      },
+      {
+        name: "desktop_fs_delete_batch",
+        description:
+          "[Filesystem] Delete multiple files in a single operation. USE WITH CAUTION as deleted files cannot be recovered. " +
+          "Supports recursive deletion (for directories), error handling, and detailed reporting. " +
+          "All paths must be within allowed directories. " +
+          "Example: {\"paths\": [\"/path/to/file1.txt\", \"/path/to/file2.txt\"], \"options\": {\"recursive\": false, \"skipErrors\": true}}",
+        inputSchema: zodToJsonSchema(BulkDeleteFilesArgsSchema),
+      },
+      {
+        name: "desktop_fs_rename_batch",
+        description:
+          "[Filesystem] Rename multiple files in a single operation. Changes filenames while keeping files in " +
+          "their original directories. Supports error handling, file extension preservation (by default), " +
+          "and detailed reporting. All files must be within allowed directories. " +
+          "Example: {\"operations\": [{\"source\": \"/path/file1.txt\", \"newName\": \"newfile1.txt\"}]}",
+        inputSchema: zodToJsonSchema(BulkRenameFilesArgsSchema),
+      },
+      {
+        name: "desktop_fs_rename_pattern",
+        description:
+          "[Filesystem] Search and replace text in multiple filenames. Useful for batch renaming files with " +
+          "similar naming patterns. Supports recursive directory traversal, regex patterns, case sensitivity, " +
+          "and dry runs (to preview changes before applying). All operations within allowed directories. " +
+          "Example: {\"directory\": \"/home/photos\", \"pattern\": \"IMG_\", \"replacement\": \"Vacation2023_\"}",
+        inputSchema: zodToJsonSchema(FindAndReplaceFilenamesArgsSchema),
       },
     ],
   };
@@ -213,41 +315,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
 
     switch (name) {
       // Terminal tools
-      case "execute_command": {
+      case "desktop_cmd_run": {
         const parsed = ExecuteCommandArgsSchema.parse(args);
         return executeCommand(parsed);
       }
-      case "read_output": {
+      case "desktop_cmd_output": {
         const parsed = ReadOutputArgsSchema.parse(args);
         return readOutput(parsed);
       }
-      case "force_terminate": {
+      case "desktop_cmd_terminate": {
         const parsed = ForceTerminateArgsSchema.parse(args);
         return forceTerminate(parsed);
       }
-      case "list_sessions":
+      case "desktop_cmd_list_sessions":
         return listSessions();
-      case "list_processes":
+      case "desktop_proc_list":
         return listProcesses();
-      case "kill_process": {
+      case "desktop_proc_kill": {
         const parsed = KillProcessArgsSchema.parse(args);
         return killProcess(parsed);
       }
-      case "block_command": {
+      case "desktop_cmd_block": {
         const parsed = BlockCommandArgsSchema.parse(args);
         const blockResult = await commandManager.blockCommand(parsed.command);
         return {
           content: [{ type: "text", text: blockResult }],
         };
       }
-      case "unblock_command": {
+      case "desktop_cmd_unblock": {
         const parsed = UnblockCommandArgsSchema.parse(args);
         const unblockResult = await commandManager.unblockCommand(parsed.command);
         return {
           content: [{ type: "text", text: unblockResult }],
         };
       }
-      case "list_blocked_commands": {
+      case "desktop_cmd_list_blocked": {
         const blockedCommands = await commandManager.listBlockedCommands();
         return {
           content: [{ type: "text", text: blockedCommands.join('\n') }],
@@ -255,7 +357,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
       }
       
       // Filesystem tools
-      case "edit_block": {
+      case "desktop_fs_edit_block": {
         const parsed = EditBlockArgsSchema.parse(args);
         const { filePath, searchReplace } = await parseEditBlock(parsed.blockContent);
         await performSearchReplace(filePath, searchReplace);
@@ -263,56 +365,56 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           content: [{ type: "text", text: `Successfully applied edit to ${filePath}` }],
         };
       }
-      case "read_file": {
+      case "desktop_fs_read": {
         const parsed = ReadFileArgsSchema.parse(args);
         const content = await readFile(parsed.path);
         return {
           content: [{ type: "text", text: content }],
         };
       }
-      case "read_multiple_files": {
+      case "desktop_fs_read_batch": {
         const parsed = ReadMultipleFilesArgsSchema.parse(args);
         const results = await readMultipleFiles(parsed.paths);
         return {
           content: [{ type: "text", text: results.join("\n---\n") }],
         };
       }
-      case "write_file": {
+      case "desktop_fs_write": {
         const parsed = WriteFileArgsSchema.parse(args);
         await writeFile(parsed.path, parsed.content);
         return {
           content: [{ type: "text", text: `Successfully wrote to ${parsed.path}` }],
         };
       }
-      case "create_directory": {
+      case "desktop_fs_mkdir": {
         const parsed = CreateDirectoryArgsSchema.parse(args);
         await createDirectory(parsed.path);
         return {
           content: [{ type: "text", text: `Successfully created directory ${parsed.path}` }],
         };
       }
-      case "list_directory": {
+      case "desktop_fs_list": {
         const parsed = ListDirectoryArgsSchema.parse(args);
         const entries = await listDirectory(parsed.path);
         return {
           content: [{ type: "text", text: entries.join('\n') }],
         };
       }
-      case "move_file": {
+      case "desktop_fs_move": {
         const parsed = MoveFileArgsSchema.parse(args);
         await moveFile(parsed.source, parsed.destination);
         return {
           content: [{ type: "text", text: `Successfully moved ${parsed.source} to ${parsed.destination}` }],
         };
       }
-      case "search_files": {
+      case "desktop_fs_search": {
         const parsed = SearchFilesArgsSchema.parse(args);
         const results = await searchFiles(parsed.path, parsed.pattern);
         return {
           content: [{ type: "text", text: results.length > 0 ? results.join('\n') : "No matches found" }],
         };
       }
-      case "get_file_info": {
+      case "desktop_fs_stat": {
         const parsed = GetFileInfoArgsSchema.parse(args);
         const info = await getFileInfo(parsed.path);
         return {
@@ -324,7 +426,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           }],
         };
       }
-      case "list_allowed_directories": {
+      case "desktop_fs_allowed_dirs": {
         const directories = listAllowedDirectories();
         return {
           content: [{ 
@@ -333,6 +435,134 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           }],
         };
       }
+      case "desktop_fs_edit_multi": {
+        const parsed = MultiEditBlocksArgsSchema.parse(args);
+        const result = await performMultiEdit(parsed.edits, parsed.options);
+        
+        let detailedResults = '';
+        for (const fileResult of result.editResults) {
+          detailedResults += `File: ${fileResult.filepath} - ${fileResult.success ? 'Success' : 'Failed'}\n`;
+          if (fileResult.error) {
+            detailedResults += `  Error: ${fileResult.error}\n`;
+          }
+          
+          for (const opResult of fileResult.operationResults) {
+            detailedResults += `  Operation ${opResult.index}: ${opResult.success ? 'Success' : 'Failed'}`;
+            if (opResult.matchCount) {
+              detailedResults += ` (${opResult.matchCount} matches)`;
+            }
+            if (opResult.error) {
+              detailedResults += ` - Error: ${opResult.error}`;
+            }
+            detailedResults += '\n';
+          }
+        }
+        
+        return {
+          content: [{ 
+            type: "text", 
+            text: `Multi-edit operation ${result.success ? 'completed successfully' : 'completed with errors'}${result.dryRun ? ' (DRY RUN)' : ''}\n\n${detailedResults}` 
+          }],
+          isError: !result.success,
+        };
+      }
+      
+      // Bulk file operations tools
+      case "desktop_fs_move_batch": {
+        const parsed = BulkMoveFilesArgsSchema.parse(args);
+        const result = await bulkMoveFiles(parsed.operations, parsed.options);
+        
+        const summary = `Bulk move operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "desktop_fs_copy_batch": {
+        const parsed = BulkCopyFilesArgsSchema.parse(args);
+        const result = await bulkCopyFiles(parsed.operations, parsed.options);
+        
+        const summary = `Bulk copy operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "desktop_fs_delete_batch": {
+        const parsed = BulkDeleteFilesArgsSchema.parse(args);
+        const result = await bulkDeleteFiles(parsed.paths, parsed.options);
+        
+        const summary = `Bulk delete operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "desktop_fs_rename_batch": {
+        const parsed = BulkRenameFilesArgsSchema.parse(args);
+        const result = await bulkRenameFiles(parsed.operations, parsed.options);
+        
+        const summary = `Bulk rename operation ${result.success ? 'completed successfully' : 'completed with errors'}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
+      case "desktop_fs_rename_pattern": {
+        const parsed = FindAndReplaceFilenamesArgsSchema.parse(args);
+        const result = await findAndReplaceFilenames(
+          parsed.directory,
+          parsed.pattern,
+          parsed.replacement,
+          parsed.options
+        );
+        
+        const summary = `Find and replace filename operation ${result.success ? 'completed successfully' : 'completed with errors'}${parsed.options?.dryRun ? ' (DRY RUN)' : ''}
+Total: ${result.totalOperations}
+Successful: ${result.successfulOperations}
+Failed: ${result.failedOperations}
+
+Details:
+${result.details.join('\n')}`;
+        
+        return {
+          content: [{ type: "text", text: summary }],
+          isError: !result.success,
+        };
+      }
+      
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

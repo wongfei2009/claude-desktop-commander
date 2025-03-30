@@ -68,3 +68,92 @@ export const GetFileInfoArgsSchema = z.object({
 export const EditBlockArgsSchema = z.object({
   blockContent: z.string(),
 });
+
+// Multi-block editing schema
+export const MultiEditBlocksArgsSchema = z.object({
+  edits: z.array(
+    z.object({
+      filepath: z.string(),
+      operations: z.array(
+        z.object({
+          type: z.enum(['replace', 'insertBefore', 'insertAfter', 'prepend', 'append']),
+          search: z.string().optional(),
+          replace: z.string().optional(),
+          lineNumber: z.number().optional(),
+          content: z.string().optional(),
+        })
+      )
+    })
+  ),
+  options: z.object({
+    dryRun: z.boolean().optional().default(false),
+    caseSensitive: z.boolean().optional().default(true),
+    allOccurrences: z.boolean().optional().default(false),
+  }).optional(),
+});
+
+// Bulk file operations schemas
+export const BulkMoveFilesArgsSchema = z.object({
+  operations: z.array(
+    z.object({
+      source: z.string(),
+      destination: z.string(),
+    })
+  ),
+  options: z.object({
+    createDirectories: z.boolean().optional().default(true),
+    skipErrors: z.boolean().optional().default(false),
+    overwrite: z.boolean().optional().default(false),
+  }).optional(),
+});
+
+export const BulkCopyFilesArgsSchema = z.object({
+  operations: z.array(
+    z.object({
+      source: z.string(),
+      destination: z.string(),
+    })
+  ),
+  options: z.object({
+    createDirectories: z.boolean().optional().default(true),
+    skipErrors: z.boolean().optional().default(false),
+    overwrite: z.boolean().optional().default(false),
+  }).optional(),
+});
+
+export const BulkDeleteFilesArgsSchema = z.object({
+  paths: z.array(z.string()),
+  options: z.object({
+    recursive: z.boolean().optional().default(false),
+    skipErrors: z.boolean().optional().default(false),
+  }).optional(),
+});
+
+export const BulkRenameFilesArgsSchema = z.object({
+  operations: z.array(
+    z.object({
+      source: z.string(),
+      newName: z.string(),
+    })
+  ),
+  options: z.object({
+    skipErrors: z.boolean().optional().default(false),
+    overwrite: z.boolean().optional().default(false),
+    preserveExtension: z.boolean().optional().default(true),
+  }).optional(),
+});
+
+export const FindAndReplaceFilenamesArgsSchema = z.object({
+  directory: z.string(),
+  pattern: z.string(),
+  replacement: z.string(),
+  options: z.object({
+    recursive: z.boolean().optional().default(false),
+    regex: z.boolean().optional().default(false),
+    caseSensitive: z.boolean().optional().default(true),
+    skipErrors: z.boolean().optional().default(false),
+    overwrite: z.boolean().optional().default(false),
+    dryRun: z.boolean().optional().default(false),
+    preserveExtension: z.boolean().optional().default(true),
+  }).optional(),
+});

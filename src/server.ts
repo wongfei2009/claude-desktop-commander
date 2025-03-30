@@ -23,6 +23,7 @@ import {
   SearchFilesArgsSchema,
   GetFileInfoArgsSchema,
   EditBlockArgsSchema,
+  MultiEditBlocksArgsSchema,
 } from './tools/schemas.js';
 import { executeCommand, readOutput, forceTerminate, listSessions } from './tools/execute.js';
 import { listProcesses, killProcess } from './tools/process.js';
@@ -37,7 +38,7 @@ import {
   getFileInfo,
   listAllowedDirectories,
 } from './tools/filesystem.js';
-import { parseEditBlock, performSearchReplace } from './tools/edit.js';
+import { parseEditBlock, performSearchReplace, performMultiEdit } from './tools/edit.js';
 
 import { VERSION } from './version.js';
 
@@ -203,6 +204,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "Format: filepath, then <<<<<<< SEARCH, content to find, =======, new content, >>>>>>> REPLACE.",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
+      {
+        name: "multi_edit_blocks",
+        description:
+            "Apply multiple surgical text edits across multiple files in a single operation. " +
+            "Supports different operation types: replace, insertBefore, insertAfter, prepend, append. " +
+            "Provides detailed results including success status and match counts for each operation.",
+        inputSchema: zodToJsonSchema(MultiEditBlocksArgsSchema),
+      },
     ],
   };
 });
@@ -331,6 +340,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
             type: "text", 
             text: `Allowed directories:\n${directories.join('\n')}` 
           }],
+        };
+      }
+      case "multi_edit_blocks": {
+        const parsed = MultiEditBlocksArgsSchema.parse(args);
+        const result = await performMultiEdit(parsed.edits, parsed.options);
+        
+        let detailedResults = '';
+        for (const fileResult of result.editResults) {
+          detailedResults += `File: ${fileResult.filepath} - ${fileResult.success ? 'Success' : 'Failed'}\n`;
+          if (fileResult.error) {
+            detailedResults += `  Error: ${fileResult.error}\n`;
+          }
+          
+          for (const opResult of fileResult.operationResults) {
+            detailedResults += `  Operation ${opResult.index}: ${opResult.success ? 'Success' : 'Failed'}`;
+            if (opResult.matchCount) {
+              detailedResults += ` (${opResult.matchCount} matches)`;
+            }
+            if (opResult.error) {
+              detailedResults += ` - Error: ${opResult.error}`;
+            }
+            detailedResults += '\n';
+          }
+        }
+        
+        return {
+          content: [{ 
+            type: "text", 
+            text: `Multi-edit operation ${result.success ? 'completed successfully' : 'completed with errors'}${result.dryRun ? ' (DRY RUN)' : ''}\n\n${detailedResults}` 
+          }],
+          isError: !result.success,
         };
       }
       default:

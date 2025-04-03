@@ -81,25 +81,22 @@ describe('Filesystem Search Tests', () => {
     expect(fileNames).toContain('TEST_FILE_UPPER.txt');
   });
   
-  // Note: The implementation in filesystem.js always does case-insensitive search,
-  // regardless of the caseSensitive option, so we've adjusted our tests to match
-  // the actual implementation behavior.
-  it('should find all files regardless of caseSensitive option', async () => {
+  // Test that case-sensitive search only returns exact case matches
+  it('should respect the caseSensitive option when set to true', async () => {
     const results = await searchFiles(testDir, 'test', { caseSensitive: true });
     
-    // Even with caseSensitive option, implementation still does case-insensitive search
     expect(results.length).toBeGreaterThan(0);
     
     // Extract filenames from paths
     const fileNames = results.map(filePath => path.basename(filePath));
     
-    // Will find both upper and lower case files
+    // Should contain lowercase matches but not uppercase
     expect(fileNames).toContain('test_file.txt');
-    expect(fileNames).toContain('TEST_FILE_UPPER.txt');
+    expect(fileNames).not.toContain('TEST_FILE_UPPER.txt');
   });
   
-  // Similarly, searching with uppercase pattern will still be case-insensitive
-  it('should find all files with both upper and lowercase when searching with uppercase pattern', async () => {
+  // Test that uppercase pattern with case sensitivity finds only uppercase matches
+  it('should find only uppercase files when searching with uppercase pattern and caseSensitive: true', async () => {
     const results = await searchFiles(testDir, 'TEST', { caseSensitive: true });
     
     // There should be some results
@@ -108,8 +105,8 @@ describe('Filesystem Search Tests', () => {
     // Extract filenames from paths
     const fileNames = results.map(filePath => path.basename(filePath));
     
-    // Still finds both because search is always case-insensitive
-    expect(fileNames).toContain('test_file.txt');
+    // Should only find uppercase matches
+    expect(fileNames).not.toContain('test_file.txt');
     expect(fileNames).toContain('TEST_FILE_UPPER.txt');
   });
   

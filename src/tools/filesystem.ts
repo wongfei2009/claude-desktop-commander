@@ -247,40 +247,55 @@ export async function searchFiles(
     const results: string[] = [];
     
     try {
-        // Format the glob pattern - add wildcards around the pattern
-        // This converts a simple search term into a glob pattern
-        // e.g., "test" becomes "*test*"
-        const globPattern = `**/*${pattern}*`;
+        // Create more efficient glob patterns that still support case sensitivity
+        // For case-sensitive search: use the exact pattern
+        // For case-insensitive search: create a pattern with lowercase
+        let globPattern: string;
         
-        // Get all files that match the glob pattern
+        if (options.caseSensitive) {
+            // Case-sensitive: use the exact pattern with glob wildcards
+            globPattern = `**/*${pattern}*`;
+        } else {
+            // For case-insensitive search on filesystems that are case-sensitive,
+            // we use a two-step approach for better performance:
+            // 1. Use a broader pattern with the lowercase pattern
+            // 2. Then filter results with JavaScript string operations
+            globPattern = `**/*${pattern.toLowerCase()}*`;
+        }
+        
+        // Get files matching the glob pattern
         const matches = await glob(globPattern, {
             cwd: validPath,
             dot: true,                      // Include dotfiles
             absolute: true,                 // Return absolute paths
             nodir: false,                   // Include directories
-            followSymbolicLinks: false,     // Don't follow symlinks for security
+            follow: false,                  // Don't follow symlinks for security
             ignore: ['**/node_modules/**'], // Common exclusion
+            nocase: !options.caseSensitive, // Turn on case-insensitivity for non-case-sensitive searches
         });
         
-        // Filter results based on case sensitivity and validate each path
+        // Pre-process the pattern if doing case-insensitive search
+        const lowerPattern = pattern.toLowerCase();
+        
+        // Filter results and validate each path
         for (const match of matches) {
             try {
                 // Validate the path is allowed
                 await validatePath(match);
-                
                 const filename = path.basename(match);
                 
-                // Apply case sensitivity filter if needed
+                // Apply case sensitivity filter based on option
+                let isMatch = false;
                 if (options.caseSensitive) {
-                    // For case-sensitive search, check if the filename contains the exact pattern
-                    if (filename.includes(pattern)) {
-                        results.push(match);
-                    }
+                    // Case-sensitive match (glob has already filtered, but double-check)
+                    isMatch = filename.includes(pattern);
                 } else {
-                    // For case-insensitive search, convert both to lowercase
-                    if (filename.toLowerCase().includes(pattern.toLowerCase())) {
-                        results.push(match);
-                    }
+                    // Case-insensitive match (ensure it actually contains the pattern)
+                    isMatch = filename.toLowerCase().includes(lowerPattern);
+                }
+                
+                if (isMatch) {
+                    results.push(match);
                 }
             } catch (error) {
                 // Skip this file if validation fails

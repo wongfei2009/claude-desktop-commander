@@ -92,6 +92,9 @@ export async function parseEditBlock(blockContent: string): Promise<{
 
 /**
  * Performs multiple file edits with various operation types
+ * Line numbers for subsequent operations are automatically adjusted when insertBefore or insertAfter
+ * operations add lines to a file, ensuring operations are applied at the intended locations.
+ * 
  * @param edits Array of file edits to perform
  * @param options Options for the edit operations
  * @returns Results of the edit operations
@@ -177,8 +180,26 @@ export async function performMultiEdit(edits: FileEdit[], options: EditOptions =
               
               if (operation.type === 'insertBefore') {
                 lines.splice(operation.lineNumber, 0, operation.content);
+                
+                // Update line numbers for subsequent operations on this file
+                for (let futureOpIndex = opIndex + 1; futureOpIndex < fileEdit.operations.length; futureOpIndex++) {
+                  const futureOp = fileEdit.operations[futureOpIndex];
+                  if (futureOp.lineNumber !== undefined && futureOp.lineNumber >= operation.lineNumber) {
+                    // Shift line number for all operations at or after the insertion point
+                    futureOp.lineNumber += 1;
+                  }
+                }
               } else {
                 lines.splice(operation.lineNumber + 1, 0, operation.content);
+                
+                // Update line numbers for subsequent operations on this file
+                for (let futureOpIndex = opIndex + 1; futureOpIndex < fileEdit.operations.length; futureOpIndex++) {
+                  const futureOp = fileEdit.operations[futureOpIndex];
+                  if (futureOp.lineNumber !== undefined && futureOp.lineNumber > operation.lineNumber) {
+                    // Shift line number for all operations after the insertion point
+                    futureOp.lineNumber += 1;
+                  }
+                }
               }
               
               content = lines.join('\n');

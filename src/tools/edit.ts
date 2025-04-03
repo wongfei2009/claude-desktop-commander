@@ -92,8 +92,12 @@ export async function parseEditBlock(blockContent: string): Promise<{
 
 /**
  * Performs multiple file edits with various operation types
- * Line numbers for subsequent operations are automatically adjusted when insertBefore or insertAfter
- * operations add lines to a file, ensuring operations are applied at the intended locations.
+ * Line numbers for subsequent operations are automatically adjusted when operations change the number of lines
+ * in a file (insertBefore, insertAfter, or replace operations), ensuring operations are applied at
+ * the intended locations.
+ * 
+ * For replace operations, the function calculates the difference in line count between the search text
+ * and the replacement text, then adjusts line numbers for subsequent operations accordingly.
  * 
  * @param edits Array of file edits to perform
  * @param options Options for the edit operations
@@ -159,11 +163,32 @@ export async function performMultiEdit(edits: FileEdit[], options: EditOptions =
                   throw new Error(`Search content not found in ${filePath}`);
                 }
                 
+                // Count lines in the text being replaced
+                const contentBeforeMatch = content.substring(0, searchIndex);
+                const searchStartLineNumber = (contentBeforeMatch.match(/\n/g) || []).length;
+                const searchLineCount = (operation.search.match(/\n/g) || []).length + 1; // +1 because we count lines, not newlines
+                const replaceLineCount = (operation.replace.match(/\n/g) || []).length + 1;
+                const lineDifference = replaceLineCount - searchLineCount;
+                
                 matchCount = 1;
                 content = 
                   content.substring(0, searchIndex) + 
                   operation.replace + 
                   content.substring(searchIndex + operation.search.length);
+                
+                // Adjust line numbers for subsequent operations if the replacement changes line count
+                if (lineDifference !== 0) {
+                  // Calculate the line number where the replacement ends
+                  const searchEndLineNumber = searchStartLineNumber + searchLineCount - 1;
+                  
+                  // Update line numbers for subsequent operations
+                  for (let futureOpIndex = opIndex + 1; futureOpIndex < fileEdit.operations.length; futureOpIndex++) {
+                    const futureOp = fileEdit.operations[futureOpIndex];
+                    if (futureOp.lineNumber !== undefined && futureOp.lineNumber > searchEndLineNumber) {
+                      futureOp.lineNumber += lineDifference;
+                    }
+                  }
+                }
               }
               break;
               

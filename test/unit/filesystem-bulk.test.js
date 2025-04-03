@@ -21,7 +21,10 @@ const testDir = path.join(os.tmpdir(), 'claude-desktop-commander-test-' + Date.n
 console.log('Using test directory:', testDir);
 
 // Import required functions
-import { listAllowedDirectories, addTestDirectory } from '../../dist/tools/filesystem.js';
+import { listAllowedDirectories, addTestDirectory, setupTestTempDirectories } from '../../dist/tools/filesystem.js';
+
+// Setup test directory structure
+setupTestTempDirectories();
 
 // Explicitly add our test directory to the allowed list
 // We need to do this before any files are created

@@ -2,7 +2,7 @@
  * Integration tests for filesystem operations
  */
 import { strict as assert } from 'assert';
-import { readFile, writeFile, createDirectory, listDirectory, moveFile, searchFiles, getFileInfo } from '../../dist/tools/filesystem.js';
+import { readFile, writeFile, createDirectory, listDirectory, moveFile, searchFiles, getFileInfo, addTestDirectory, setupTestTempDirectories } from '../../dist/tools/filesystem.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { promises as fs } from 'fs';
@@ -35,6 +35,12 @@ function it(name, fn) {
 describe('Filesystem Integration Tests', () => {
   // Setup and cleanup functions
   async function setupTestDirectory() {
+    // Add test directory to allowed directories list
+    addTestDirectory(TEST_DIR);
+    
+    // Setup temp directories used in testing
+    setupTestTempDirectories();
+    
     // Create test directory
     try {
       await fs.mkdir(TEST_DIR, { recursive: true });
@@ -198,6 +204,12 @@ describe('Filesystem Integration Tests', () => {
 async function runTests() {
   try {
     console.log('Running Filesystem Integration tests...');
+    
+    // Global test setup - ensure temp directories are properly configured
+    setupTestTempDirectories();
+    
+    // Explicitly add our test directory to allowed list
+    addTestDirectory(TEST_DIR);
     
     for (const suite of suites) {
       console.log(`\n${suite.name}`);

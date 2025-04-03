@@ -34,14 +34,66 @@ addAllowedDirectory(os.tmpdir());
 // Also add subdirectories of the temp directory (for tests)
 const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('test');
 
-// If we're in testing mode, add special handling for test directories
+// In test mode, we'll set up testing directories later using setupTestTempDirectories()
+// This separation keeps config logic out of the validation function
 if (isTesting) {
-  console.log("Running in test mode - enabling special test directory handling");
+  console.log("Running in test mode - use setupTestTempDirectories() to configure test directories");
+}
+
+// Helper function for tests to add allowed directories dynamically
+export function addTestDirectory(dir: string) {
+  // Normalize the directory path
+  const expandedPath = expandHome(dir);
+  const absolute = path.isAbsolute(expandedPath)
+    ? path.resolve(expandedPath)
+    : path.resolve(process.cwd(), expandedPath);
+    
+  // Ensure both the directory and any parent directories are allowed
+  // This is essential for tests that create nested directories
+  addAllowedDirectory(absolute);
   
-  // In test mode, we'll be more permissive with temporary directories
-  // that include 'claude-desktop-commander' in their name
+  // Also add parent directory for tests
+  const parentDir = path.dirname(absolute);
+  console.log(`Also adding parent test directory: ${parentDir}`);
+  addAllowedDirectory(parentDir);
+  
+  // Special handling for temp directories with 'claude-desktop-commander'
+  if (absolute.includes(os.tmpdir()) && absolute.includes('claude-desktop-commander')) {
+    console.log(`Adding test temp directory: ${absolute}`);
+    
+    // Check if temp dir parent path needs to be added too
+    const tmpDir = os.tmpdir();
+    if (!allowedDirectories.includes(tmpDir)) {
+      console.log(`Adding temp directory to allowed list: ${tmpDir}`);
+      addAllowedDirectory(tmpDir);
+    }
+  }
+  
+  // Check if this directory is already in our allowed list in some form
+  const normalizedDir = normalizePath(absolute);
+  const isAlreadyTracked = allowedDirectories.some(
+    allowed => normalizedDir.startsWith(normalizePath(allowed))
+  );
+  
+  if (!isAlreadyTracked) {
+    console.error(`Warning: Directory ${absolute} is not within any allowed directory`);
+  }
+  
+  // Log current allowed directories for debugging
+  console.log(`Added test directory: ${absolute}`);
+  console.log(`Current allowed directories: ${allowedDirectories.join(', ')}`);
+}
+
+/**
+ * Adds all test directories that match a specific pattern within the temp directory.
+ * This should be called during test setup to ensure all test directories are properly allowed.
+ */
+export function setupTestTempDirectories() {
   const tempDir = os.tmpdir();
-  console.log(`Temporary directory: ${tempDir}`);
+  console.log(`Setting up test directories in temp: ${tempDir}`);
+  
+  // Add temp directory itself
+  addAllowedDirectory(tempDir);
   
   // List existing temp directories that might be test directories
   try {
@@ -57,30 +109,6 @@ if (isTesting) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Error scanning temp directory: ${errorMessage}`);
   }
-}
-
-// Helper function for tests to add allowed directories dynamically
-export function addTestDirectory(dir: string) {
-  // Ensure both the directory and any parent directories are allowed
-  // This is essential for tests that create nested directories
-  addAllowedDirectory(dir);
-  
-  // Also ensure we track subdirectories created by tests
-  // For example, if we add /tmp/test, we should also allow /tmp/test/subdir
-  const normalizedDir = normalizePath(dir);
-  
-  // Check if this directory is already in our allowed list in some form
-  const isAlreadyTracked = allowedDirectories.some(
-    allowed => normalizedDir.startsWith(normalizePath(allowed))
-  );
-  
-  if (!isAlreadyTracked) {
-    console.error(`Warning: Directory ${dir} is not within any allowed directory`);
-  }
-  
-  // Log current allowed directories for debugging
-  console.log(`Added test directory: ${dir}`);
-  console.log(`Current allowed directories: ${allowedDirectories.join(', ')}`);
 }
 
 // Normalize all paths consistently
@@ -105,25 +133,9 @@ export async function validatePath(requestedPath: string): Promise<string> {
     const normalizedRequested = normalizePath(absolute);
     const normalizedDesktop = normalizePath(path.join(os.homedir(), 'Desktop'));
 
-    // Check for test environment
-    const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('test');
-
     // Explicitly check for Desktop folder access
     if (normalizedRequested.startsWith(normalizedDesktop)) {
         throw new Error(`Access denied - Desktop folder is restricted: ${absolute}`);
-    }
-
-    // Special handling for temporary test directories
-    if (isTesting && normalizedRequested.includes(normalizePath(os.tmpdir()))) {
-        // For test directories, we're more permissive with temporary directories
-        const tmpDir = normalizePath(os.tmpdir());
-        if (normalizedRequested.startsWith(tmpDir)) {
-            // If it's clearly in the temp directory, allow it for tests
-            if (normalizedRequested.includes('claude-desktop-commander')) {
-                console.log(`Test path validated: ${absolute}`);
-                return absolute;
-            }
-        }
     }
 
     // Check if path is within allowed directories
@@ -132,27 +144,10 @@ export async function validatePath(requestedPath: string): Promise<string> {
         return normalizedRequested.startsWith(normalizedDir);
     });
     
-    // Special case for test directories in tmp
-    const isTmpTest = normalizedRequested.includes('/tmp/claude-desktop-commander');
-    
-    if (!isAllowed && !isTmpTest) {
+    if (!isAllowed) {
         console.error(`Path validation failed: ${absolute}`);
         console.error(`Allowed directories: ${allowedDirectories.join(', ')}`);
-        
-        // Add the directory if it's a test directory in /tmp
-        if (isTesting && normalizedRequested.startsWith(normalizePath(os.tmpdir()))) {
-            console.log(`Auto-adding test directory: ${absolute}`);
-            addAllowedDirectory(absolute);
-            // Add parent directory too
-            const parentDir = path.dirname(absolute);
-            console.log(`Auto-adding parent directory: ${parentDir}`);
-            addAllowedDirectory(parentDir);
-            
-            // Continue with validation
-            return absolute;
-        } else {
-            throw new Error(`Access denied - path outside allowed directories: ${absolute}`);
-        }
+        throw new Error(`Access denied - path outside allowed directories: ${absolute}`);
     }
 
     // Handle symlinks by checking their real path
@@ -163,12 +158,6 @@ export async function validatePath(requestedPath: string): Promise<string> {
         // Check if symlink resolves to Desktop
         if (normalizedReal.startsWith(normalizedDesktop)) {
             throw new Error("Access denied - symlink target resolves to restricted Desktop folder");
-        }
-        
-        // For test directories in tmp, be more permissive
-        if (isTesting && normalizedReal.includes(normalizePath(os.tmpdir())) && 
-            normalizedReal.includes('claude-desktop-commander')) {
-            return realPath;
         }
         
         const isRealPathAllowed = allowedDirectories.some(dir => normalizedReal.startsWith(normalizePath(dir)));
@@ -188,28 +177,14 @@ export async function validatePath(requestedPath: string): Promise<string> {
                 throw new Error("Access denied - parent directory is restricted Desktop folder");
             }
             
-            // For test directories in tmp, be more permissive
-            if (isTesting && normalizedParent.includes(normalizePath(os.tmpdir())) && 
-                normalizedParent.includes('claude-desktop-commander')) {
-                return absolute;
-            }
-            
             const isParentAllowed = allowedDirectories.some(dir => normalizedParent.startsWith(normalizePath(dir)));
-            // Special case for test directories in tmp
-            const isParentTmpTest = normalizedParent.includes('/tmp/claude-desktop-commander');
             
-            if (!isParentAllowed && !isParentTmpTest) {
-                // Auto-add test directories in tmp
-                if (isTesting && normalizedParent.startsWith(normalizePath(os.tmpdir()))) {
-                    console.log(`Auto-adding parent test directory: ${parentDir}`);
-                    addAllowedDirectory(parentDir);
-                } else {
-                    throw new Error("Access denied - parent directory outside allowed directories");
-                }
+            if (!isParentAllowed) {
+                throw new Error("Access denied - parent directory outside allowed directories");
             }
             return absolute;
         } catch (error) {
-            if (isTesting) {
+            if (process.env.NODE_ENV === 'test' || process.argv.includes('test')) {
                 // More detailed error for tests
                 console.error(`Parent directory error: ${parentDir}`, error);
             }

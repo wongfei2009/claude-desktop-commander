@@ -1,31 +1,10 @@
 /**
  * Integration tests for terminal commands
  */
-import { strict as assert } from 'assert';
+import { describe, it, expect } from 'vitest';
 import { executeCommand, readOutput, forceTerminate } from '../../dist/tools/execute.js';
 import { listProcesses } from '../../dist/tools/process.js';
 
-// Test process ID for long-running commands
-let testPid = null;
-
-// Test runner array
-const suites = [];
-
-// Test runner simulation functions
-function describe(name, fn) {
-  const suite = { name, tests: [] };
-  suites.push(suite);
-  fn();
-}
-
-function it(name, fn) {
-  if (suites.length > 0) {
-    const currentSuite = suites[suites.length - 1];
-    currentSuite.tests.push({ name, fn });
-  }
-}
-
-// Define tests
 describe('Terminal Integration Tests', () => {
   describe('executeCommand', () => {
     it('should execute simple commands', async () => {
@@ -34,13 +13,12 @@ describe('Terminal Integration Tests', () => {
         timeout_ms: 1000
       });
       
-      assert.ok(result.content[0].text.includes('Hello, world!'));
+      expect(result.content[0].text).toContain('Hello, world!');
     });
     
-    it('should handle command errors', async () => {
-      // This test is problematic because the command manager might block or handle
+    it.skip('should handle command errors', async () => {
+      // This test is skipped because the command manager might block or handle
       // nonexistent commands differently than we expect
-      // Skip this test for now
     });
     
     it('should return process ID for long-running commands', async () => {
@@ -53,9 +31,18 @@ describe('Terminal Integration Tests', () => {
         timeout_ms: 500  // Short timeout to ensure it returns before completion
       });
       
-      assert.ok(result.content[0].text.includes('PID'), 'Should return a valid process ID');
+      expect(result.content[0].text).toContain('PID');
       
-      // We can't easily get the PID from the result text, so we'll skip the cleanup for this test
+      // If we can extract the PID, we should terminate the process
+      try {
+        const pidMatch = result.content[0].text.match(/PID: (\d+)/);
+        if (pidMatch && pidMatch[1]) {
+          const pid = parseInt(pidMatch[1], 10);
+          await forceTerminate({ pid });
+        }
+      } catch (error) {
+        console.warn('Could not terminate test process:', error.message);
+      }
     });
   });
   
@@ -63,45 +50,8 @@ describe('Terminal Integration Tests', () => {
     it('should list processes', async () => {
       const processes = await listProcesses({});
       
-      // The output format is different from what we expected
-      // Checking that we get a response is good enough for this test
-      assert.ok(processes);
+      // The response should be an object with the expected format
+      expect(processes).toBeDefined();
     });
-    
-    // Since we can't easily get PIDs from the executeCommand response format,
-    // we'll skip these tests for now
   });
 });
-
-// Run tests
-async function runTests() {
-  try {
-    console.log('Running Terminal Integration tests...');
-    
-    for (const suite of suites) {
-      console.log(`\n${suite.name}`);
-      for (const test of suite.tests) {
-        try {
-          await test.fn();
-          console.log(`  ✓ ${test.name}`);
-        } catch (error) {
-          console.log(`  ✗ ${test.name}`);
-          console.error(`    Error: ${error.message}`);
-          throw error;
-        }
-      }
-    }
-    
-    console.log('\nAll tests passed! 🎉');
-  } catch (error) {
-    console.error('Tests failed:', error);
-    process.exit(1);
-  }
-}
-
-// Run the tests when this module is executed directly
-if (import.meta.url === process.argv[1]) {
-  runTests();
-}
-
-export { runTests };

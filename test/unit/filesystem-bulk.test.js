@@ -1,14 +1,25 @@
 /**
  * Unit tests for the filesystem bulk operations
  */
+import { 
+  describe, 
+  it, 
+  expect, 
+  beforeAll, 
+  afterAll 
+} from 'vitest';
+
 import {
   bulkMoveFiles,
   bulkCopyFiles,
   bulkDeleteFiles,
   bulkRenameFiles,
   findAndReplaceFilenames,
+  listAllowedDirectories, 
+  addTestDirectory, 
+  setupTestTempDirectories
 } from '../../dist/tools/filesystem.js';
-import { strict as assert } from 'assert';
+
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -20,40 +31,6 @@ process.env.NODE_ENV = 'test';
 const testDir = path.join(os.tmpdir(), 'claude-desktop-commander-test-' + Date.now());
 console.log('Using test directory:', testDir);
 
-// Import required functions
-import { listAllowedDirectories, addTestDirectory, setupTestTempDirectories } from '../../dist/tools/filesystem.js';
-
-// Setup test directory structure
-setupTestTempDirectories();
-
-// Explicitly add our test directory to the allowed list
-// We need to do this before any files are created
-addTestDirectory(testDir);
-console.log('Test directory added to allowed list:', testDir);
-
-// Debug allowed directories
-console.log('Allowed directories:', listAllowedDirectories());
-
-// Add the temp directory explicitly as well
-addTestDirectory(os.tmpdir());
-
-// Test runner array to collect test cases
-const suites = [];
-
-// Test runner simulation functions
-function describe(name, fn) {
-  const suite = { name, tests: [] };
-  suites.push(suite);
-  fn();
-}
-
-function it(name, fn) {
-  if (suites.length > 0) {
-    const currentSuite = suites[suites.length - 1];
-    currentSuite.tests.push({ name, fn });
-  }
-}
-
 // Helper functions
 async function fileExists(filePath) {
   try {
@@ -64,11 +41,25 @@ async function fileExists(filePath) {
   }
 }
 
-// Define tests
 describe('Filesystem Bulk Operations', () => {
   // Setup to create test directory and necessary files
-  async function setupTestEnvironment() {
+  beforeAll(async () => {
     console.log('Setting up test environment...');
+    
+    // Setup test directories
+    setupTestTempDirectories();
+    
+    // Explicitly add our test directory to the allowed list
+    // We need to do this before any files are created
+    addTestDirectory(testDir);
+    console.log('Test directory added to allowed list:', testDir);
+    
+    // Debug allowed directories
+    console.log('Allowed directories:', listAllowedDirectories());
+    
+    // Add the temp directory explicitly as well
+    addTestDirectory(os.tmpdir());
+    
     try {
       // Create test directory
       await fs.mkdir(testDir, { recursive: true });
@@ -108,10 +99,10 @@ describe('Filesystem Bulk Operations', () => {
       console.error('Error setting up test environment:', error);
       throw error;
     }
-  }
+  });
   
   // Clean up the test directory after tests
-  async function cleanupTestEnvironment() {
+  afterAll(async () => {
     console.log('Cleaning up test environment...');
     try {
       await fs.rm(testDir, { recursive: true, force: true });
@@ -119,14 +110,10 @@ describe('Filesystem Bulk Operations', () => {
     } catch (error) {
       console.error(`Error cleaning up test directory: ${error.message}`);
     }
-  }
+  });
   
-  // Before running tests, set up the environment
-  setupTestEnvironment();
-  
-  // We'll use a single test for debugging purposes
   describe('SimpleBulkOperations', () => {
-    it('should perform a simple move operation', async function() {
+    it('should perform a simple move operation', async () => {
       console.log('Starting simple move test...');
       
       // Define all paths first
@@ -295,7 +282,7 @@ describe('Filesystem Bulk Operations', () => {
         console.log('Move result:', JSON.stringify(result, null, 2));
         
         // Check operation result
-        assert.equal(result.success, true, 'Operation should succeed');
+        expect(result.success).toBe(true);
         
         // Check files
         const srcExists = await fileExists(testFilePath);
@@ -308,13 +295,13 @@ describe('Filesystem Bulk Operations', () => {
           destPath: destFilePath
         });
         
-        assert.equal(srcExists, false, 'Source file should no longer exist');
-        assert.equal(destExists, true, 'Destination file should exist');
+        expect(srcExists).toBe(false);
+        expect(destExists).toBe(true);
         
         if (destExists) {
           const content = await fs.readFile(destFilePath, 'utf8');
           console.log('Destination file content:', content);
-          assert.equal(content, 'Test content', 'File content should be preserved');
+          expect(content).toBe('Test content');
         }
       } catch (error) {
         console.error('Test error:', error);
@@ -350,43 +337,3 @@ describe('Filesystem Bulk Operations', () => {
     });
   });
 });
-
-// Run tests
-async function runTests() {
-  try {
-    console.log('Running Filesystem Bulk Operations tests...');
-    
-    for (const suite of suites) {
-      console.log(`\n${suite.name}`);
-      for (const test of suite.tests) {
-        try {
-          await test.fn();
-          console.log(`  ✓ ${test.name}`);
-        } catch (error) {
-          console.log(`  ✗ ${test.name}`);
-          console.error(`    Error: ${error.message}`);
-          throw error;
-        }
-      }
-    }
-    
-    console.log('\nAll filesystem bulk operations tests passed! 🎉');
-  } catch (error) {
-    console.error('Tests failed:', error);
-    process.exit(1);
-  } finally {
-    // Final cleanup
-    try {
-      await fs.rm(testDir, { recursive: true, force: true });
-    } catch (error) {
-      console.error(`Final cleanup failed: ${error.message}`);
-    }
-  }
-}
-
-// Run the tests when this module is executed directly
-if (import.meta.url.endsWith(process.argv[1])) {
-  runTests();
-}
-
-export { runTests };

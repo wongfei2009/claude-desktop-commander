@@ -212,7 +212,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "[Filesystem] Recursively search for files and directories matching a pattern. " +
           "Searches through all subdirectories from the starting path. Useful for finding files " +
           "by name, extension, or partial text match. Returns absolute paths to all matches. " +
-          "Only searches within allowed directories. Example: {\"path\": \"/home/user\", \"pattern\": \".txt\"}",
+          "Supports case-sensitive searching with the optional 'caseSensitive' parameter (default: false). " +
+          "Only searches within allowed directories. Example: {\"path\": \"/home/user\", \"pattern\": \".txt\", \"caseSensitive\": true}",
         inputSchema: zodToJsonSchema(SearchFilesArgsSchema),
       },
       {
@@ -409,7 +410,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
       }
       case "desktop_fs_search": {
         const parsed = SearchFilesArgsSchema.parse(args);
-        const results = await searchFiles(parsed.path, parsed.pattern);
+        const results = await searchFiles(parsed.path, parsed.pattern, { 
+          caseSensitive: parsed.caseSensitive 
+        });
         return {
           content: [{ type: "text", text: results.length > 0 ? results.join('\n') : "No matches found" }],
         };

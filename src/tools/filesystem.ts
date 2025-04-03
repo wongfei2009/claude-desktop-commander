@@ -236,33 +236,62 @@ export async function moveFile(sourcePath: string, destinationPath: string): Pro
     await fs.rename(validSourcePath, validDestPath);
 }
 
-export async function searchFiles(rootPath: string, pattern: string): Promise<string[]> {
+import { glob } from 'glob';
+
+export async function searchFiles(
+    rootPath: string, 
+    pattern: string, 
+    options: { caseSensitive?: boolean } = {}
+): Promise<string[]> {
+    const validPath = await validatePath(rootPath);
     const results: string[] = [];
-
-    async function search(currentPath: string) {
-        const entries = await fs.readdir(currentPath, { withFileTypes: true });
-
-        for (const entry of entries) {
-            const fullPath = path.join(currentPath, entry.name);
-            
+    
+    try {
+        // Format the glob pattern - add wildcards around the pattern
+        // This converts a simple search term into a glob pattern
+        // e.g., "test" becomes "*test*"
+        const globPattern = `**/*${pattern}*`;
+        
+        // Get all files that match the glob pattern
+        const matches = await glob(globPattern, {
+            cwd: validPath,
+            dot: true,                      // Include dotfiles
+            absolute: true,                 // Return absolute paths
+            nodir: false,                   // Include directories
+            followSymbolicLinks: false,     // Don't follow symlinks for security
+            ignore: ['**/node_modules/**'], // Common exclusion
+        });
+        
+        // Filter results based on case sensitivity and validate each path
+        for (const match of matches) {
             try {
-                await validatePath(fullPath);
-
-                if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
-                    results.push(fullPath);
-                }
-
-                if (entry.isDirectory()) {
-                    await search(fullPath);
+                // Validate the path is allowed
+                await validatePath(match);
+                
+                const filename = path.basename(match);
+                
+                // Apply case sensitivity filter if needed
+                if (options.caseSensitive) {
+                    // For case-sensitive search, check if the filename contains the exact pattern
+                    if (filename.includes(pattern)) {
+                        results.push(match);
+                    }
+                } else {
+                    // For case-insensitive search, convert both to lowercase
+                    if (filename.toLowerCase().includes(pattern.toLowerCase())) {
+                        results.push(match);
+                    }
                 }
             } catch (error) {
+                // Skip this file if validation fails
                 continue;
             }
         }
+    } catch (error) {
+        // Log the error but return empty results
+        console.error(`Error searching files: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    const validPath = await validatePath(rootPath);
-    await search(validPath);
+    
     return results;
 }
 

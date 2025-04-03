@@ -41,7 +41,17 @@ async function runServer() {
     const transport = new StdioServerTransport();
     
     // Load blocked commands from config file
-    await commandManager.loadBlockedCommands();
+    try {
+      await commandManager.loadBlockedCommands();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      process.stderr.write(JSON.stringify({
+        type: 'error',
+        timestamp: new Date().toISOString(),
+        message: `Critical error loading security configuration: ${errorMessage}`
+      }) + '\n');
+      process.exit(1); // Exit if we can't load security settings
+    }
 
     await server.connect(transport);
   } catch (error) {

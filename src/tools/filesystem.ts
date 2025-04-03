@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import fsSync from "fs"
 import { createReadStream, createWriteStream } from "fs";
 import { pipeline } from "stream/promises";
 import path from "path";
@@ -45,7 +46,7 @@ if (isTesting) {
   
   // List existing temp directories that might be test directories
   try {
-    const tempContents = fs.readdirSync(tempDir);
+    const tempContents = fsSync.readdirSync(tempDir);
     const testDirs = tempContents.filter(name => name.includes('claude-desktop-commander'));
     
     for (const dir of testDirs) {
@@ -54,7 +55,8 @@ if (isTesting) {
       addAllowedDirectory(fullPath);
     }
   } catch (error) {
-    console.error(`Error scanning temp directory: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error scanning temp directory: ${errorMessage}`);
   }
 }
 

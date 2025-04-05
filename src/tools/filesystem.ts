@@ -240,28 +240,18 @@ import { glob } from 'glob';
 
 export async function searchFiles(
     rootPath: string, 
-    pattern: string, 
-    options: { caseSensitive?: boolean } = {}
+    pattern: string
 ): Promise<string[]> {
     const validPath = await validatePath(rootPath);
     const results: string[] = [];
     
     try {
-        // Create more efficient glob patterns that still support case sensitivity
-        // For case-sensitive search: use the exact pattern
-        // For case-insensitive search: create a pattern with lowercase
-        let globPattern: string;
-        
-        if (options.caseSensitive) {
-            // Case-sensitive: use the exact pattern with glob wildcards
-            globPattern = `**/*${pattern}*`;
-        } else {
-            // For case-insensitive search on filesystems that are case-sensitive,
-            // we use a two-step approach for better performance:
-            // 1. Use a broader pattern with the lowercase pattern
-            // 2. Then filter results with JavaScript string operations
-            globPattern = `**/*${pattern.toLowerCase()}*`;
-        }
+        // Create a glob pattern for case-insensitive search
+        // For case-insensitive search on filesystems that are case-sensitive,
+        // we use a two-step approach for better performance:
+        // 1. Use a broader pattern with the lowercase pattern
+        // 2. Then filter results with JavaScript string operations
+        const globPattern = `**/*${pattern.toLowerCase()}*`;
         
         // Get files matching the glob pattern
         const matches = await glob(globPattern, {
@@ -271,10 +261,10 @@ export async function searchFiles(
             nodir: false,                   // Include directories
             follow: false,                  // Don't follow symlinks for security
             ignore: ['**/node_modules/**'], // Common exclusion
-            nocase: !options.caseSensitive, // Turn on case-insensitivity for non-case-sensitive searches
+            nocase: true,                   // Always use case-insensitive search
         });
         
-        // Pre-process the pattern if doing case-insensitive search
+        // Pre-process the pattern for case-insensitive search
         const lowerPattern = pattern.toLowerCase();
         
         // Filter results and validate each path
@@ -284,15 +274,8 @@ export async function searchFiles(
                 await validatePath(match);
                 const filename = path.basename(match);
                 
-                // Apply case sensitivity filter based on option
-                let isMatch = false;
-                if (options.caseSensitive) {
-                    // Case-sensitive match (glob has already filtered, but double-check)
-                    isMatch = filename.includes(pattern);
-                } else {
-                    // Case-insensitive match (ensure it actually contains the pattern)
-                    isMatch = filename.toLowerCase().includes(lowerPattern);
-                }
+                // Case-insensitive match (ensure it actually contains the pattern)
+                const isMatch = filename.toLowerCase().includes(lowerPattern);
                 
                 if (isMatch) {
                     results.push(match);

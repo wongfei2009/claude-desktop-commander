@@ -58,7 +58,6 @@ export const MoveFileArgsSchema = z.object({
 export const SearchFilesArgsSchema = z.object({
   path: z.string(),
   pattern: z.string(),
-  caseSensitive: z.boolean().optional().default(false),
 });
 
 export const GetFileInfoArgsSchema = z.object({

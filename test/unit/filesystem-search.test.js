@@ -28,15 +28,16 @@ describe('Filesystem Search Tests', () => {
     // Make sure test mode is enabled
     setupTestTempDirectories();
     
-    // Explicitly add the test directory
-    addTestDirectory(testDir);
-    
-    // Explicitly add the parent temp directory
-    addTestDirectory(os.tmpdir());
-    
     try {
       // Create test directory
       await fs.mkdir(testDir, { recursive: true });
+      
+      // Add test directory and ALL parent directories to allowed list
+      let currentDir = testDir;
+      while (currentDir !== '/') {
+        addTestDirectory(currentDir);
+        currentDir = path.dirname(currentDir);
+      }
       
       // Create test files with different casing
       await fs.writeFile(path.join(testDir, 'test_file.txt'), 'This is a test file');
@@ -81,33 +82,25 @@ describe('Filesystem Search Tests', () => {
     expect(fileNames).toContain('TEST_FILE_UPPER.txt');
   });
   
-  // Test that case-sensitive search only returns exact case matches
-  it('should respect the caseSensitive option when set to true', async () => {
-    const results = await searchFiles(testDir, 'test', { caseSensitive: true });
+  // Note: caseSensitive option has been removed from searchFiles
+  it('should always perform case-insensitive searches (case-sensitive option removed)', async () => {
+    const resultsLowercase = await searchFiles(testDir, 'test');
+    const resultsUppercase = await searchFiles(testDir, 'TEST');
     
-    expect(results.length).toBeGreaterThan(0);
-    
-    // Extract filenames from paths
-    const fileNames = results.map(filePath => path.basename(filePath));
-    
-    // Should contain lowercase matches but not uppercase
-    expect(fileNames).toContain('test_file.txt');
-    expect(fileNames).not.toContain('TEST_FILE_UPPER.txt');
-  });
-  
-  // Test that uppercase pattern with case sensitivity finds only uppercase matches
-  it('should find only uppercase files when searching with uppercase pattern and caseSensitive: true', async () => {
-    const results = await searchFiles(testDir, 'TEST', { caseSensitive: true });
-    
-    // There should be some results
-    expect(results.length).toBeGreaterThan(0);
+    // Both searches should return the same results since case-insensitive
+    expect(resultsLowercase.length).toBeGreaterThan(0);
+    expect(resultsUppercase.length).toBeGreaterThan(0);
     
     // Extract filenames from paths
-    const fileNames = results.map(filePath => path.basename(filePath));
+    const fileNamesLowercase = resultsLowercase.map(filePath => path.basename(filePath));
+    const fileNamesUppercase = resultsUppercase.map(filePath => path.basename(filePath));
     
-    // Should only find uppercase matches
-    expect(fileNames).not.toContain('test_file.txt');
-    expect(fileNames).toContain('TEST_FILE_UPPER.txt');
+    // Both should contain both lower and uppercase filenames
+    expect(fileNamesLowercase).toContain('test_file.txt');
+    expect(fileNamesLowercase).toContain('TEST_FILE_UPPER.txt');
+    
+    expect(fileNamesUppercase).toContain('test_file.txt');
+    expect(fileNamesUppercase).toContain('TEST_FILE_UPPER.txt');
   });
   
   // Test recursive search

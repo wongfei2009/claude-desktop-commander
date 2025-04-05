@@ -176,8 +176,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "desktop_fs_write",
         description:
           "[Filesystem] Completely replace file contents. Best for large changes (>20% of file) or when edit_block fails. " +
+          "Uses atomic writing for safety and supports creating parent directories if they don't exist. " +
           "Use with caution as it will overwrite existing files. Creates new files if they don't exist. " +
-          "Only works within allowed directories. Example: {\"path\": \"/home/user/file.txt\", \"content\": \"New file content here\"}",
+          "Only works within allowed directories. Example: {\"path\": \"/home/user/file.txt\", \"content\": \"New file content here\", " +
+          "\"options\": {\"createDirectories\": true}}",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema),
       },
       {
@@ -381,7 +383,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
       }
       case "desktop_fs_write": {
         const parsed = WriteFileArgsSchema.parse(args);
-        await writeFile(parsed.path, parsed.content);
+        await writeFile(parsed.path, parsed.content, parsed.options);
         return {
           content: [{ type: "text", text: `Successfully wrote to ${parsed.path}` }],
         };

@@ -188,7 +188,7 @@ export async function validatePath(requestedPath: string): Promise<string> {
                 // More detailed error for tests
                 console.error(`Parent directory error: ${parentDir}`, error);
             }
-            throw new Error(`Parent directory does not exist: ${parentDir}`);
+            throw new Error(`Directory does not exist: ${parentDir}. Create it first or use createDirectories option.`);
         }
     }
 }
@@ -199,9 +199,53 @@ export async function readFile(filePath: string): Promise<string> {
     return fs.readFile(validPath, "utf-8");
 }
 
-export async function writeFile(filePath: string, content: string): Promise<void> {
-    const validPath = await validatePath(filePath);
-    await fs.writeFile(validPath, content, "utf-8");
+import { randomUUID } from 'crypto';
+
+export async function writeFile(
+    filePath: string, 
+    content: string, 
+    options: { createDirectories?: boolean } = {}
+): Promise<void> {
+    try {
+        const validPath = await validatePath(filePath);
+        const directory = path.dirname(validPath);
+        
+        // Create directory if needed and requested
+        if (options.createDirectories) {
+            try {
+                await fs.access(directory);
+            } catch {
+                await fs.mkdir(directory, { recursive: true });
+            }
+        }
+        
+        // Use atomic write pattern
+        const tempPath = path.join(directory, `.${randomUUID()}.tmp`);
+        
+        try {
+            // Write to a temporary file first
+            await fs.writeFile(tempPath, content, "utf-8");
+            
+            // Rename the temporary file to the target file
+            await fs.rename(tempPath, validPath);
+        } catch (error) {
+            // Clean up temp file if it exists
+            try {
+                await fs.unlink(tempPath);
+            } catch {
+                // Ignore errors during cleanup
+            }
+            throw error;
+        }
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes('ENOENT') || error.message.includes('does not exist')) {
+                throw new Error(`Directory does not exist for file: ${filePath}. Use createDirectories option to create it automatically.`);
+            }
+            throw error;
+        }
+        throw new Error(`Unknown error writing file: ${filePath}`);
+    }
 }
 
 export async function readMultipleFiles(paths: string[]): Promise<string[]> {

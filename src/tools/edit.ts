@@ -59,7 +59,7 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
         block.replace + 
         content.substring(searchIndex + block.search.length);
 
-    await writeFile(filePath, newContent);
+    await writeFile(filePath, newContent, { createDirectories: false });
 }
 
 export async function parseEditBlock(blockContent: string): Promise<{
@@ -270,7 +270,7 @@ export async function performMultiEdit(edits: FileEdit[], options: EditOptions =
       
       // Write the updated content if not a dry run and all operations succeeded
       if (!dryRun && fileSuccess && content !== originalContent) {
-        await writeFile(filePath, content);
+        await writeFile(filePath, content, { createDirectories: false });
       }
       
       editResults.push({

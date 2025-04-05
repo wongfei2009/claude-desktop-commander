@@ -40,6 +40,9 @@ export const ReadMultipleFilesArgsSchema = z.object({
 export const WriteFileArgsSchema = z.object({
   path: z.string(),
   content: z.string(),
+  options: z.object({
+    createDirectories: z.boolean().optional().default(false),
+  }).optional(),
 });
 
 export const CreateDirectoryArgsSchema = z.object({

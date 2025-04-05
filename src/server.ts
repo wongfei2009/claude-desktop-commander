@@ -242,10 +242,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "desktop_fs_edit_block",
         description:
             "[Filesystem] Apply precise text replacements to files. Best for small to moderate changes (<20% of file size). " +
-            "Multiple blocks can be used for separate changes. Verifies changes succeeded after application. " +
-            "Required format: first line must be the filepath, followed by <<<<<<< SEARCH, then the exact text " +
-            "to find, then =======, then the replacement text, and finally >>>>>>> REPLACE. " +
-            "Example: {\"blockContent\": \"/path/to/file.txt\n<<<<<<< SEARCH\nold text\n=======\nnew text\n>>>>>>> REPLACE\"}",
+            "Verifies changes succeeded after application and provides detailed results. " +
+            "\n\nFormat requirements:\n" +
+            "1. First line: Full path to the file\n" +
+            "2. Second line: The exact string <<<<<<< SEARCH\n" +
+            "3. Next lines: The exact text to find (must match exactly, including whitespace)\n" +
+            "4. Next line: The exact string =======\n" +
+            "5. Next lines: The text to replace with\n" +
+            "6. Last line: The exact string >>>>>>> REPLACE\n\n" +
+            "Example: {\"blockContent\": \"/path/to/file.txt\\n<<<<<<< SEARCH\\nold text\\n=======\\nnew text\\n>>>>>>> REPLACE\"}" +
+            "\n\nBest practices for LLMs:\n" +
+            "- Use unique search strings that appear exactly once in the file\n" +
+            "- Keep search blocks as short as possible while ensuring uniqueness\n" +
+            "- Include enough context to ensure correct placement\n" +
+            "- For multiple edits to the same file, use separate function calls to avoid errors",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
       {
@@ -362,9 +372,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
       case "desktop_fs_edit_block": {
         const parsed = EditBlockArgsSchema.parse(args);
         const { filePath, searchReplace } = await parseEditBlock(parsed.blockContent);
-        await performSearchReplace(filePath, searchReplace);
+        const result = await performSearchReplace(filePath, searchReplace);
+        
+        // Return more detailed information about the operation
+        let responseText = result.message;
+        if (result.success && result.matchCount) {
+          responseText += `\nFound ${result.matchCount} ${result.matchCount === 1 ? 'occurrence' : 'occurrences'} of the search text.`;
+        }
+        
         return {
-          content: [{ type: "text", text: `Successfully applied edit to ${filePath}` }],
+          content: [{ type: "text", text: responseText }],
+          isError: !result.success
         };
       }
       case "desktop_fs_read": {

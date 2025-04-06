@@ -31,7 +31,7 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
     try {
         const content = await readFile(filePath);
         
-        // Find first occurrence
+        // First check if the search string exists
         const searchIndex = content.indexOf(block.search);
         if (searchIndex === -1) {
             return {
@@ -40,13 +40,39 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
             };
         }
 
-        // Replace content
+        // Ensure the search string doesn't contain any edit markers
+        const hasMarkers = 
+            block.search.includes('<<<<<<< SEARCH') || 
+            block.search.includes('=======') || 
+            block.search.includes('>>>>>>> REPLACE');
+            
+        if (hasMarkers) {
+            return {
+                success: false,
+                message: `Search string contains edit markers, which is not allowed to prevent marker leakage.`
+            };
+        }
+
+        // Ensure the replace string doesn't contain any edit markers
+        const replaceHasMarkers = 
+            block.replace.includes('<<<<<<< SEARCH') || 
+            block.replace.includes('=======') || 
+            block.replace.includes('>>>>>>> REPLACE');
+            
+        if (replaceHasMarkers) {
+            return {
+                success: false,
+                message: `Replace string contains edit markers, which is not allowed.`
+            };
+        }
+
+        // Replace content - only replace the first occurrence for safety
         const newContent = 
             content.substring(0, searchIndex) + 
             block.replace + 
             content.substring(searchIndex + block.search.length);
 
-        // Count occurrences for informational purposes
+        // Count all occurrences for informational purposes
         let count = 0;
         let pos = content.indexOf(block.search);
         while (pos !== -1) {
@@ -64,6 +90,19 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
             return {
                 success: false,
                 message: `Verification failed: replacement text not found in updated file ${filePath}`
+            };
+        }
+        
+        // Double check that no markers leaked into the file
+        const hasMarkersInResult = 
+            updatedContent.includes('<<<<<<< SEARCH') || 
+            updatedContent.includes('=======') || 
+            updatedContent.includes('>>>>>>> REPLACE');
+            
+        if (hasMarkersInResult) {
+            return {
+                success: false,
+                message: `Warning: Edit markers found in the result file. This may indicate a problem with the edit process.`
             };
         }
         
@@ -101,7 +140,14 @@ export async function parseEditBlock(blockContent: string): Promise<{
     const lines = blockContent.split('\n');
     
     // First line should be the file path
+    if (lines.length === 0) {
+        throw new Error('Invalid edit block format - empty content');
+    }
+    
     const filePath = lines[0].trim();
+    if (!filePath) {
+        throw new Error('Invalid edit block format - missing file path on first line');
+    }
     
     // Find the markers
     const searchStart = lines.indexOf('<<<<<<< SEARCH');
@@ -112,9 +158,32 @@ export async function parseEditBlock(blockContent: string): Promise<{
         throw new Error('Invalid edit block format - missing markers');
     }
     
+    // Validate marker order
+    if (!(searchStart < divider && divider < replaceEnd)) {
+        throw new Error('Invalid edit block format - markers in wrong order');
+    }
+    
     // Extract search and replace content
     const search = lines.slice(searchStart + 1, divider).join('\n');
     const replace = lines.slice(divider + 1, replaceEnd).join('\n');
+    
+    // Ensure search string is not empty
+    if (!search.trim()) {
+        throw new Error('Invalid edit block format - empty search string');
+    }
+    
+    // Check for nested markers which would cause issues
+    const hasNestedMarkers = 
+        search.includes('<<<<<<< SEARCH') || 
+        search.includes('=======') || 
+        search.includes('>>>>>>> REPLACE') ||
+        replace.includes('<<<<<<< SEARCH') || 
+        replace.includes('=======') || 
+        replace.includes('>>>>>>> REPLACE');
+        
+    if (hasNestedMarkers) {
+        throw new Error('Invalid edit block format - nested markers detected in search or replace text');
+    }
     
     return {
         filePath,

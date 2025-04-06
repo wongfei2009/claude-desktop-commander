@@ -255,7 +255,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "- Use unique search strings that appear exactly once in the file\n" +
             "- Keep search blocks as short as possible while ensuring uniqueness\n" +
             "- Include enough context to ensure correct placement\n" +
-            "- For multiple edits to the same file, use separate function calls to avoid errors",
+            "- For multiple edits to the same file, use separate function calls to avoid errors\n" +
+            "- IMPORTANT: Neither the search nor replace text should contain the marker strings (<<<<<<< SEARCH, =======, >>>>>>> REPLACE)\n" +
+            "- Always verify the file after edits to ensure no markers were accidentally left in the file",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
       // Bulk file operations tools

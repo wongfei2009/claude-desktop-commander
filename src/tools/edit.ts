@@ -9,10 +9,15 @@ interface SearchReplace {
  * Performs a search and replace operation on a file.
  * This function:
  * 1. Reads the file content
- * 2. Finds the search text
+ * 2. Finds the search text (handling different line ending formats)
  * 3. Replaces it with the new text
  * 4. Writes the file back
  * 5. Verifies the change was applied correctly
+ * 
+ * The function intelligently handles different line ending formats (CRLF vs LF)
+ * by normalizing both the content and search text if an exact match isn't found.
+ * This makes the edit operation more robust when working with files from
+ * different operating systems or editors.
  * 
  * The function is tested in ./test/unit/edit.test.js and ./test/integration/edit.test.js
  * 
@@ -31,13 +36,31 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
     try {
         const content = await readFile(filePath);
         
-        // First check if the search string exists
-        const searchIndex = content.indexOf(block.search);
+        // First check if the search string exists, handling different line endings
+        // Try the search as-is first
+        let searchIndex = content.indexOf(block.search);
+        
+        // If not found, try with normalized line endings
         if (searchIndex === -1) {
-            return {
-                success: false,
-                message: `Search content not found in ${filePath}`
-            };
+            // Normalize both content and search string (convert all line endings to \n)
+            const normalizedContent = content.replace(/\r\n/g, '\n');
+            const normalizedSearch = block.search.replace(/\r\n/g, '\n');
+            
+            // Try the search with normalized text
+            searchIndex = normalizedContent.indexOf(normalizedSearch);
+            
+            if (searchIndex === -1) {
+                return {
+                    success: false,
+                    message: `Search content not found in ${filePath}. Note: Both original and normalized line endings were checked.`
+                };
+            }
+            
+            // If we found it with normalized line endings, re-find the actual position in the original content
+            // This ensures we're editing the file with its original line endings
+            const beforeSearch = normalizedContent.substring(0, searchIndex);
+            const originalBeforeLength = content.substring(0, content.length).split('\n').slice(0, beforeSearch.split('\n').length).join('\n').length;
+            searchIndex = originalBeforeLength;
         }
 
         // Ensure the search string doesn't contain any edit markers
@@ -67,29 +90,60 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
         }
 
         // Replace content - only replace the first occurrence for safety
+        // Determine the length of text to replace based on whether we're using normalized content
+        let searchLength = block.search.length;
+        
+        // If we normalized for the search, calculate the correct length in the original content
+        if (content.indexOf(block.search) === -1 && content.replace(/\r\n/g, '\n').indexOf(block.search.replace(/\r\n/g, '\n')) !== -1) {
+            // Count how many line breaks are in the search text as they may have different lengths
+            // in the original content (\r\n vs \n)
+            const normalizedSearchLines = block.search.replace(/\r\n/g, '\n').split('\n').length - 1;
+            const originalSearchRange = content.substring(searchIndex).split('\n').slice(0, normalizedSearchLines + 1).join('\n');
+            searchLength = originalSearchRange.length;
+        }
+        
         const newContent = 
             content.substring(0, searchIndex) + 
             block.replace + 
-            content.substring(searchIndex + block.search.length);
+            content.substring(searchIndex + searchLength);
 
         // Count all occurrences for informational purposes
         let count = 0;
-        let pos = content.indexOf(block.search);
+        let searchText = block.search;
+        let contentToSearch = content;
+        
+        // If we had to normalize for the search, use normalized versions for counting too
+        if (content.indexOf(block.search) === -1 && content.replace(/\r\n/g, '\n').indexOf(block.search.replace(/\r\n/g, '\n')) !== -1) {
+            searchText = block.search.replace(/\r\n/g, '\n');
+            contentToSearch = content.replace(/\r\n/g, '\n');
+        }
+        
+        let pos = contentToSearch.indexOf(searchText);
         while (pos !== -1) {
             count++;
-            pos = content.indexOf(block.search, pos + 1);
+            pos = contentToSearch.indexOf(searchText, pos + 1);
         }
 
         await writeFile(filePath, newContent, { createDirectories: false });
         
         // Verify the change was successful
         const updatedContent = await readFile(filePath);
-        const verifyIndex = updatedContent.indexOf(block.replace);
+        
+        // Try to find the replacement text as-is
+        let verifyIndex = updatedContent.indexOf(block.replace);
+        
+        // If not found, try with normalized line endings
+        if (verifyIndex === -1) {
+            const normalizedContent = updatedContent.replace(/\r\n/g, '\n');
+            const normalizedReplace = block.replace.replace(/\r\n/g, '\n');
+            
+            verifyIndex = normalizedContent.indexOf(normalizedReplace);
+        }
         
         if (verifyIndex === -1) {
             return {
                 success: false,
-                message: `Verification failed: replacement text not found in updated file ${filePath}`
+                message: `Verification failed: replacement text not found in updated file ${filePath}. This may be due to line ending differences.`
             };
         }
         

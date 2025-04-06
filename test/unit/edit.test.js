@@ -149,5 +149,25 @@ new
       expect(result.success).toBe(false);
       expect(result.message).toContain('Error');
     });
+    
+    it('should handle different line ending formats (CRLF vs LF)', async () => {
+      // Create a file with CRLF line endings
+      await fs.writeFile(testFilePath, 'First line\r\nSecond line\r\nThird line');
+      
+      // Try to match with LF line endings
+      const result = await performSearchReplace(testFilePath, {
+        search: 'First line\nSecond line',
+        replace: 'Replaced content'
+      });
+      
+      // Check if the operation was successful despite different line endings
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Successfully applied edit');
+      
+      // Verify file content was changed
+      const fileContent = await fs.readFile(testFilePath, 'utf8');
+      expect(fileContent).toContain('Replaced content');
+      expect(fileContent).not.toContain('First line\r\nSecond line');
+    });
   });
 });

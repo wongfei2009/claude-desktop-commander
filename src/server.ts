@@ -258,7 +258,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "- For multiple edits to the same file, use separate function calls to avoid errors",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
-=======
       // Bulk file operations tools
       {
         name: "desktop_fs_move_batch",
@@ -445,7 +444,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           }],
         };
       }
-=======
       
       // Bulk file operations tools
       case "desktop_fs_move_batch": {

@@ -23,7 +23,6 @@ import {
   SearchFilesArgsSchema,
   GetFileInfoArgsSchema,
   EditBlockArgsSchema,
-  MultiEditBlocksArgsSchema,
   BulkMoveFilesArgsSchema,
   BulkCopyFilesArgsSchema,
   BulkDeleteFilesArgsSchema,
@@ -48,7 +47,8 @@ import {
   bulkRenameFiles,
   findAndReplaceFilenames,
 } from './tools/filesystem.js';
-import { parseEditBlock, performSearchReplace, performMultiEdit } from './tools/edit.js';
+import { parseEditBlock, performSearchReplace } from './tools/edit.js';
+
 
 import { VERSION } from './version.js';
 
@@ -258,17 +258,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "- For multiple edits to the same file, use separate function calls to avoid errors",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
-      {
-        name: "desktop_fs_edit_multi",
-        description:
-            "[Filesystem] Apply multiple surgical text edits across multiple files in a single operation. " +
-            "Supports different operation types: replace, insertBefore, insertAfter, prepend, append. " +
-            "Provides detailed results including success status and match counts for each operation. " +
-            "Arguments include 'edits' (array of file operations) and 'options' (settings like " +
-            "caseSensitive, allOccurrences, and dryRun). More powerful and flexible than desktop_fs_edit_block " +
-            "for complex editing needs.",
-        inputSchema: zodToJsonSchema(MultiEditBlocksArgsSchema),
-      },
+=======
       // Bulk file operations tools
       {
         name: "desktop_fs_move_batch",
@@ -455,37 +445,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           }],
         };
       }
-      case "desktop_fs_edit_multi": {
-        const parsed = MultiEditBlocksArgsSchema.parse(args);
-        const result = await performMultiEdit(parsed.edits, parsed.options);
-        
-        let detailedResults = '';
-        for (const fileResult of result.editResults) {
-          detailedResults += `File: ${fileResult.filepath} - ${fileResult.success ? 'Success' : 'Failed'}\n`;
-          if (fileResult.error) {
-            detailedResults += `  Error: ${fileResult.error}\n`;
-          }
-          
-          for (const opResult of fileResult.operationResults) {
-            detailedResults += `  Operation ${opResult.index}: ${opResult.success ? 'Success' : 'Failed'}`;
-            if (opResult.matchCount) {
-              detailedResults += ` (${opResult.matchCount} matches)`;
-            }
-            if (opResult.error) {
-              detailedResults += ` - Error: ${opResult.error}`;
-            }
-            detailedResults += '\n';
-          }
-        }
-        
-        return {
-          content: [{ 
-            type: "text", 
-            text: `Multi-edit operation ${result.success ? 'completed successfully' : 'completed with errors'}${result.dryRun ? ' (DRY RUN)' : ''}\n\n${detailedResults}` 
-          }],
-          isError: !result.success,
-        };
-      }
+=======
       
       // Bulk file operations tools
       case "desktop_fs_move_batch": {

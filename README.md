@@ -16,6 +16,8 @@ A powerful MCP server that enables the Claude Desktop app to execute terminal co
 - [Handling Long-Running Commands](#handling-long-running-commands)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
+- [Development](#development)
+  - [Testing](#testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -159,6 +161,48 @@ For secure usage:
    - Ensure you're not trying to access restricted locations
 
 For more troubleshooting tips, see the [installation guide](./docs/installation.md#troubleshooting).
+
+## Development
+
+### Testing
+
+This project uses [Vitest](https://vitest.dev/) as its testing framework. The test suite includes both unit and integration tests to ensure reliability.
+
+#### Running Tests
+
+- **All tests**: Run all tests with `npm test`
+- **Unit tests only**: Run `npm run test:unit`
+- **Integration tests only**: Run `npm run test:integration`
+- **Watch mode**: Run tests in watch mode with `npm run test:watch`
+- **Coverage report**: Generate coverage with `npm run test:coverage`
+
+#### Test Organization
+
+- **Unit tests**: Located in `test/unit/` directory
+- **Integration tests**: Located in `test/integration/` directory
+- **Test helpers**: Common test utilities in `test/test-helpers.js`
+
+#### Writing Tests
+
+When writing new tests, follow the existing pattern:
+
+```js
+import { describe, it, expect } from 'vitest';
+import { functionToTest } from '../../dist/path/to/module.js';
+
+describe('Module Name', () => {
+  it('should do something specific', async () => {
+    // Arrange
+    const input = 'test input';
+    
+    // Act
+    const result = await functionToTest(input);
+    
+    // Assert
+    expect(result).toBe('expected output');
+  });
+});
+```
 
 ## Contributing
 

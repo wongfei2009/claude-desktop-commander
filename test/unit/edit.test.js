@@ -2,30 +2,12 @@
  * Unit tests for the edit tools
  */
 import { parseEditBlock, performSearchReplace } from '../../dist/tools/edit.js';
-import { strict as assert } from 'assert';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 
 // Test file path
 const testFilePath = 'test/unit/test-file.txt';
 
-// Test runner array to collect test cases
-const suites = [];
-
-// Test runner simulation functions
-function describe(name, fn) {
-  const suite = { name, tests: [] };
-  suites.push(suite);
-  fn();
-}
-
-function it(name, fn) {
-  if (suites.length > 0) {
-    const currentSuite = suites[suites.length - 1];
-    currentSuite.tests.push({ name, fn });
-  }
-}
-
-// Define tests
 describe('Edit Tools', () => {
   describe('parseEditBlock', () => {
     it('should correctly parse a valid edit block', async () => {
@@ -38,9 +20,9 @@ new content
 
       const parsed = await parseEditBlock(testBlock);
       
-      assert.equal(parsed.filePath, 'test.txt');
-      assert.equal(parsed.searchReplace.search, 'old content');
-      assert.equal(parsed.searchReplace.replace, 'new content');
+      expect(parsed.filePath).toBe('test.txt');
+      expect(parsed.searchReplace.search).toBe('old content');
+      expect(parsed.searchReplace.replace).toBe('new content');
     });
 
     it('should handle multiline content', async () => {
@@ -56,9 +38,9 @@ new line 2
 
       const parsed = await parseEditBlock(testBlock);
       
-      assert.equal(parsed.filePath, 'test.txt');
-      assert.equal(parsed.searchReplace.search, 'line 1\nline 2\nline 3');
-      assert.equal(parsed.searchReplace.replace, 'new line 1\nnew line 2');
+      expect(parsed.filePath).toBe('test.txt');
+      expect(parsed.searchReplace.search).toBe('line 1\nline 2\nline 3');
+      expect(parsed.searchReplace.replace).toBe('new line 1\nnew line 2');
     });
 
     it('should throw an error for invalid block format', async () => {
@@ -69,44 +51,35 @@ content
 new
 >>>>>>> REPLACE`;
 
-      try {
-        await parseEditBlock(invalidBlock);
-        assert.fail('Should have thrown an error');
-      } catch (error) {
-        assert.ok(error.message.includes('Invalid edit block format'));
-      }
+      await expect(parseEditBlock(invalidBlock)).rejects.toThrow('Invalid edit block format');
     });
   });
 
   describe('performSearchReplace', () => {
-    // Setup and cleanup functions as proper functions
-    async function setupTestFile() {
+    // Setup and cleanup using Vitest hooks
+    beforeEach(async () => {
       // Create a test file before each test
       await fs.writeFile(testFilePath, 'This is old content to replace\nAnd another line');
-    }
+    });
 
-    async function cleanupTestFile() {
+    afterEach(async () => {
       // Cleanup after each test
       try {
         await fs.unlink(testFilePath);
       } catch (error) {
         // File might not exist, which is fine
       }
-    }
+    });
 
     it('should replace content in a file', async () => {
-      await setupTestFile();
-      
       await performSearchReplace(testFilePath, {
         search: 'old content',
         replace: 'new content'
       });
 
       const result = await fs.readFile(testFilePath, 'utf8');
-      assert.ok(result.includes('new content'));
-      assert.ok(!result.includes('old content'));
-      
-      await cleanupTestFile();
+      expect(result).toContain('new content');
+      expect(result).not.toContain('old content');
     });
 
     it('should handle multiple occurrences', async () => {
@@ -119,58 +92,82 @@ new
 
       const result = await fs.readFile(testFilePath, 'utf8');
       // The function only replaces the first occurrence
-      assert.equal(result, 'Changed. Replace this again.');
-      
-      await cleanupTestFile();
+      expect(result).toBe('Changed. Replace this again.');
     });
 
-    it('should throw an error when the search text is not found', async () => {
-      await setupTestFile();
+    // This test needs to be updated since our new implementation returns an object with success: false
+    // rather than throwing an exception
+    it('should indicate failure when the search text is not found', async () => {
+      const result = await performSearchReplace(testFilePath, {
+        search: 'non-existent content',
+        replace: 'new content'
+      });
       
-      try {
-        await performSearchReplace(testFilePath, {
-          search: 'non-existent content',
-          replace: 'new content'
-        });
-        assert.fail('Should have thrown an error');
-      } catch (error) {
-        assert.ok(error.message.includes('not found'));
-      }
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('not found');
+    });
+
+    // Tests for the enhanced version of performSearchReplace that returns a result object
+    it('should return success status and match count', async () => {
+      // This test is for the enhanced version that returns a result object
+      const result = await performSearchReplace(testFilePath, {
+        search: 'old content',
+        replace: 'new content'
+      });
+
+      expect(result).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Successfully applied edit');
+      expect(result.matchCount).toBeDefined();
+      expect(result.matchCount).toBeGreaterThanOrEqual(1);
+
+      // Verify the file was actually modified
+      const fileContent = await fs.readFile(testFilePath, 'utf8');
+      expect(fileContent).toContain('new content');
+    });
+
+    it('should return failure status when search text is not found', async () => {
+      // This test is for the enhanced version that returns a result object
+      const result = await performSearchReplace(testFilePath, {
+        search: 'non-existent content',
+        replace: 'new content'
+      });
+
+      expect(result).toBeDefined();
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('not found');
+    });
+
+    it('should handle and report errors during file operations', async () => {
+      // Test with a non-existent file
+      const result = await performSearchReplace('non-existent-file.txt', {
+        search: 'some content',
+        replace: 'new content'
+      });
+
+      expect(result).toBeDefined();
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Error');
+    });
+    
+    it('should handle different line ending formats (CRLF vs LF)', async () => {
+      // Create a file with CRLF line endings
+      await fs.writeFile(testFilePath, 'First line\r\nSecond line\r\nThird line');
       
-      await cleanupTestFile();
+      // Try to match with LF line endings
+      const result = await performSearchReplace(testFilePath, {
+        search: 'First line\nSecond line',
+        replace: 'Replaced content'
+      });
+      
+      // Check if the operation was successful despite different line endings
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Successfully applied edit');
+      
+      // Verify file content was changed
+      const fileContent = await fs.readFile(testFilePath, 'utf8');
+      expect(fileContent).toContain('Replaced content');
+      expect(fileContent).not.toContain('First line\r\nSecond line');
     });
   });
 });
-
-// Run tests
-async function runTests() {
-  try {
-    console.log('Running Edit Tools tests...');
-    
-    for (const suite of suites) {
-      console.log(`\n${suite.name}`);
-      for (const test of suite.tests) {
-        try {
-          await test.fn();
-          console.log(`  ✓ ${test.name}`);
-        } catch (error) {
-          console.log(`  ✗ ${test.name}`);
-          console.error(`    Error: ${error.message}`);
-          throw error;
-        }
-      }
-    }
-    
-    console.log('\nAll tests passed! 🎉');
-  } catch (error) {
-    console.error('Tests failed:', error);
-    process.exit(1);
-  }
-}
-
-// Run the tests when this module is executed directly
-if (import.meta.url === process.argv[1]) {
-  runTests();
-}
-
-export { runTests };

@@ -1,5 +1,5 @@
-import fs from "fs/promises";
-import { createReadStream, createWriteStream } from "fs";
+import * as fs from "fs/promises";
+import { createReadStream, createWriteStream, readdirSync } from "fs";
 import { pipeline } from "stream/promises";
 import path from "path";
 import os from 'os';
@@ -34,19 +34,71 @@ addAllowedDirectory(os.tmpdir());
 // Also add subdirectories of the temp directory (for tests)
 const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('test');
 
-// If we're in testing mode, add special handling for test directories
+// In test mode, we'll set up testing directories later using setupTestTempDirectories()
+// This separation keeps config logic out of the validation function
 if (isTesting) {
-  console.log("Running in test mode - enabling special test directory handling");
+  console.log("Running in test mode - use setupTestTempDirectories() to configure test directories");
+}
+
+// Helper function for tests to add allowed directories dynamically
+export function addTestDirectory(dir: string) {
+  // Normalize the directory path
+  const expandedPath = expandHome(dir);
+  const absolute = path.isAbsolute(expandedPath)
+    ? path.resolve(expandedPath)
+    : path.resolve(process.cwd(), expandedPath);
+    
+  // Ensure both the directory and any parent directories are allowed
+  // This is essential for tests that create nested directories
+  addAllowedDirectory(absolute);
   
-  // In test mode, we'll be more permissive with temporary directories
-  // that include 'claude-desktop-commander' in their name
+  // Also add parent directory for tests
+  const parentDir = path.dirname(absolute);
+  console.log(`Also adding parent test directory: ${parentDir}`);
+  addAllowedDirectory(parentDir);
+  
+  // Special handling for temp directories with 'claude-desktop-commander'
+  if (absolute.includes(os.tmpdir()) && absolute.includes('claude-desktop-commander')) {
+    console.log(`Adding test temp directory: ${absolute}`);
+    
+    // Check if temp dir parent path needs to be added too
+    const tmpDir = os.tmpdir();
+    if (!allowedDirectories.includes(tmpDir)) {
+      console.log(`Adding temp directory to allowed list: ${tmpDir}`);
+      addAllowedDirectory(tmpDir);
+    }
+  }
+  
+  // Check if this directory is already in our allowed list in some form
+  const normalizedDir = normalizePath(absolute);
+  const isAlreadyTracked = allowedDirectories.some(
+    allowed => normalizedDir.startsWith(normalizePath(allowed))
+  );
+  
+  if (!isAlreadyTracked) {
+    console.error(`Warning: Directory ${absolute} is not within any allowed directory`);
+  }
+  
+  // Log current allowed directories for debugging
+  console.log(`Added test directory: ${absolute}`);
+  console.log(`Current allowed directories: ${allowedDirectories.join(', ')}`);
+}
+
+/**
+ * Adds all test directories that match a specific pattern within the temp directory.
+ * This should be called during test setup to ensure all test directories are properly allowed.
+ */
+export function setupTestTempDirectories() {
   const tempDir = os.tmpdir();
-  console.log(`Temporary directory: ${tempDir}`);
+  console.log(`Setting up test directories in temp: ${tempDir}`);
+  
+  // Add temp directory itself
+  addAllowedDirectory(tempDir);
   
   // List existing temp directories that might be test directories
   try {
-    const tempContents = fs.readdirSync(tempDir);
-    const testDirs = tempContents.filter(name => name.includes('claude-desktop-commander'));
+    const tempContents = readdirSync(tempDir);
+    const testDirs = tempContents.filter((name: string) => name.includes('claude-desktop-commander'));
     
     for (const dir of testDirs) {
       const fullPath = path.join(tempDir, dir);
@@ -54,32 +106,9 @@ if (isTesting) {
       addAllowedDirectory(fullPath);
     }
   } catch (error) {
-    console.error(`Error scanning temp directory: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Error scanning temp directory: ${errorMessage}`);
   }
-}
-
-// Helper function for tests to add allowed directories dynamically
-export function addTestDirectory(dir: string) {
-  // Ensure both the directory and any parent directories are allowed
-  // This is essential for tests that create nested directories
-  addAllowedDirectory(dir);
-  
-  // Also ensure we track subdirectories created by tests
-  // For example, if we add /tmp/test, we should also allow /tmp/test/subdir
-  const normalizedDir = normalizePath(dir);
-  
-  // Check if this directory is already in our allowed list in some form
-  const isAlreadyTracked = allowedDirectories.some(
-    allowed => normalizedDir.startsWith(normalizePath(allowed))
-  );
-  
-  if (!isAlreadyTracked) {
-    console.error(`Warning: Directory ${dir} is not within any allowed directory`);
-  }
-  
-  // Log current allowed directories for debugging
-  console.log(`Added test directory: ${dir}`);
-  console.log(`Current allowed directories: ${allowedDirectories.join(', ')}`);
 }
 
 // Normalize all paths consistently
@@ -104,25 +133,9 @@ export async function validatePath(requestedPath: string): Promise<string> {
     const normalizedRequested = normalizePath(absolute);
     const normalizedDesktop = normalizePath(path.join(os.homedir(), 'Desktop'));
 
-    // Check for test environment
-    const isTesting = process.env.NODE_ENV === 'test' || process.argv.includes('test');
-
     // Explicitly check for Desktop folder access
     if (normalizedRequested.startsWith(normalizedDesktop)) {
         throw new Error(`Access denied - Desktop folder is restricted: ${absolute}`);
-    }
-
-    // Special handling for temporary test directories
-    if (isTesting && normalizedRequested.includes(normalizePath(os.tmpdir()))) {
-        // For test directories, we're more permissive with temporary directories
-        const tmpDir = normalizePath(os.tmpdir());
-        if (normalizedRequested.startsWith(tmpDir)) {
-            // If it's clearly in the temp directory, allow it for tests
-            if (normalizedRequested.includes('claude-desktop-commander')) {
-                console.log(`Test path validated: ${absolute}`);
-                return absolute;
-            }
-        }
     }
 
     // Check if path is within allowed directories
@@ -131,27 +144,10 @@ export async function validatePath(requestedPath: string): Promise<string> {
         return normalizedRequested.startsWith(normalizedDir);
     });
     
-    // Special case for test directories in tmp
-    const isTmpTest = normalizedRequested.includes('/tmp/claude-desktop-commander');
-    
-    if (!isAllowed && !isTmpTest) {
+    if (!isAllowed) {
         console.error(`Path validation failed: ${absolute}`);
         console.error(`Allowed directories: ${allowedDirectories.join(', ')}`);
-        
-        // Add the directory if it's a test directory in /tmp
-        if (isTesting && normalizedRequested.startsWith(normalizePath(os.tmpdir()))) {
-            console.log(`Auto-adding test directory: ${absolute}`);
-            addAllowedDirectory(absolute);
-            // Add parent directory too
-            const parentDir = path.dirname(absolute);
-            console.log(`Auto-adding parent directory: ${parentDir}`);
-            addAllowedDirectory(parentDir);
-            
-            // Continue with validation
-            return absolute;
-        } else {
-            throw new Error(`Access denied - path outside allowed directories: ${absolute}`);
-        }
+        throw new Error(`Access denied - path outside allowed directories: ${absolute}`);
     }
 
     // Handle symlinks by checking their real path
@@ -162,12 +158,6 @@ export async function validatePath(requestedPath: string): Promise<string> {
         // Check if symlink resolves to Desktop
         if (normalizedReal.startsWith(normalizedDesktop)) {
             throw new Error("Access denied - symlink target resolves to restricted Desktop folder");
-        }
-        
-        // For test directories in tmp, be more permissive
-        if (isTesting && normalizedReal.includes(normalizePath(os.tmpdir())) && 
-            normalizedReal.includes('claude-desktop-commander')) {
-            return realPath;
         }
         
         const isRealPathAllowed = allowedDirectories.some(dir => normalizedReal.startsWith(normalizePath(dir)));
@@ -187,32 +177,18 @@ export async function validatePath(requestedPath: string): Promise<string> {
                 throw new Error("Access denied - parent directory is restricted Desktop folder");
             }
             
-            // For test directories in tmp, be more permissive
-            if (isTesting && normalizedParent.includes(normalizePath(os.tmpdir())) && 
-                normalizedParent.includes('claude-desktop-commander')) {
-                return absolute;
-            }
-            
             const isParentAllowed = allowedDirectories.some(dir => normalizedParent.startsWith(normalizePath(dir)));
-            // Special case for test directories in tmp
-            const isParentTmpTest = normalizedParent.includes('/tmp/claude-desktop-commander');
             
-            if (!isParentAllowed && !isParentTmpTest) {
-                // Auto-add test directories in tmp
-                if (isTesting && normalizedParent.startsWith(normalizePath(os.tmpdir()))) {
-                    console.log(`Auto-adding parent test directory: ${parentDir}`);
-                    addAllowedDirectory(parentDir);
-                } else {
-                    throw new Error("Access denied - parent directory outside allowed directories");
-                }
+            if (!isParentAllowed) {
+                throw new Error("Access denied - parent directory outside allowed directories");
             }
             return absolute;
         } catch (error) {
-            if (isTesting) {
+            if (process.env.NODE_ENV === 'test' || process.argv.includes('test')) {
                 // More detailed error for tests
                 console.error(`Parent directory error: ${parentDir}`, error);
             }
-            throw new Error(`Parent directory does not exist: ${parentDir}`);
+            throw new Error(`Directory does not exist: ${parentDir}. Create it first or use createDirectories option.`);
         }
     }
 }
@@ -223,9 +199,53 @@ export async function readFile(filePath: string): Promise<string> {
     return fs.readFile(validPath, "utf-8");
 }
 
-export async function writeFile(filePath: string, content: string): Promise<void> {
-    const validPath = await validatePath(filePath);
-    await fs.writeFile(validPath, content, "utf-8");
+import { randomUUID } from 'crypto';
+
+export async function writeFile(
+    filePath: string, 
+    content: string, 
+    options: { createDirectories?: boolean } = {}
+): Promise<void> {
+    try {
+        const validPath = await validatePath(filePath);
+        const directory = path.dirname(validPath);
+        
+        // Create directory if needed and requested
+        if (options.createDirectories) {
+            try {
+                await fs.access(directory);
+            } catch {
+                await fs.mkdir(directory, { recursive: true });
+            }
+        }
+        
+        // Use atomic write pattern
+        const tempPath = path.join(directory, `.${randomUUID()}.tmp`);
+        
+        try {
+            // Write to a temporary file first
+            await fs.writeFile(tempPath, content, "utf-8");
+            
+            // Rename the temporary file to the target file
+            await fs.rename(tempPath, validPath);
+        } catch (error) {
+            // Clean up temp file if it exists
+            try {
+                await fs.unlink(tempPath);
+            } catch {
+                // Ignore errors during cleanup
+            }
+            throw error;
+        }
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes('ENOENT') || error.message.includes('does not exist')) {
+                throw new Error(`Directory does not exist for file: ${filePath}. Use createDirectories option to create it automatically.`);
+            }
+            throw error;
+        }
+        throw new Error(`Unknown error writing file: ${filePath}`);
+    }
 }
 
 export async function readMultipleFiles(paths: string[]): Promise<string[]> {
@@ -260,33 +280,60 @@ export async function moveFile(sourcePath: string, destinationPath: string): Pro
     await fs.rename(validSourcePath, validDestPath);
 }
 
-export async function searchFiles(rootPath: string, pattern: string): Promise<string[]> {
+import { glob } from 'glob';
+
+export async function searchFiles(
+    rootPath: string, 
+    pattern: string
+): Promise<string[]> {
+    const validPath = await validatePath(rootPath);
     const results: string[] = [];
-
-    async function search(currentPath: string) {
-        const entries = await fs.readdir(currentPath, { withFileTypes: true });
-
-        for (const entry of entries) {
-            const fullPath = path.join(currentPath, entry.name);
-            
+    
+    try {
+        // Create a glob pattern for case-insensitive search
+        // For case-insensitive search on filesystems that are case-sensitive,
+        // we use a two-step approach for better performance:
+        // 1. Use a broader pattern with the lowercase pattern
+        // 2. Then filter results with JavaScript string operations
+        const globPattern = `**/*${pattern.toLowerCase()}*`;
+        
+        // Get files matching the glob pattern
+        const matches = await glob(globPattern, {
+            cwd: validPath,
+            dot: true,                      // Include dotfiles
+            absolute: true,                 // Return absolute paths
+            nodir: false,                   // Include directories
+            follow: false,                  // Don't follow symlinks for security
+            ignore: ['**/node_modules/**'], // Common exclusion
+            nocase: true,                   // Always use case-insensitive search
+        });
+        
+        // Pre-process the pattern for case-insensitive search
+        const lowerPattern = pattern.toLowerCase();
+        
+        // Filter results and validate each path
+        for (const match of matches) {
             try {
-                await validatePath(fullPath);
-
-                if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
-                    results.push(fullPath);
-                }
-
-                if (entry.isDirectory()) {
-                    await search(fullPath);
+                // Validate the path is allowed
+                await validatePath(match);
+                const filename = path.basename(match);
+                
+                // Case-insensitive match (ensure it actually contains the pattern)
+                const isMatch = filename.toLowerCase().includes(lowerPattern);
+                
+                if (isMatch) {
+                    results.push(match);
                 }
             } catch (error) {
+                // Skip this file if validation fails
                 continue;
             }
         }
+    } catch (error) {
+        // Log the error but return empty results
+        console.error(`Error searching files: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-    const validPath = await validatePath(rootPath);
-    await search(validPath);
+    
     return results;
 }
 

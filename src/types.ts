@@ -10,7 +10,8 @@ export interface ProcessInfo {
 export interface TerminalSession {
   pid: number;
   process: ChildProcess;
-  lastOutput: string;
+  stdoutChunks: Buffer[];
+  stderrChunks: Buffer[];
   isBlocked: boolean;
   startTime: Date;
 }

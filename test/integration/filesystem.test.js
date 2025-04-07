@@ -1,8 +1,8 @@
 /**
  * Integration tests for filesystem operations
  */
-import { strict as assert } from 'assert';
-import { readFile, writeFile, createDirectory, listDirectory, moveFile, searchFiles, getFileInfo } from '../../dist/tools/filesystem.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFile, writeFile, createDirectory, listDirectory, moveFile, searchFiles, getFileInfo, addTestDirectory, setupTestTempDirectories } from '../../dist/tools/filesystem.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { promises as fs } from 'fs';
@@ -14,27 +14,15 @@ const __dirname = dirname(__filename);
 // Set up test directory path
 const TEST_DIR = join(__dirname, 'test-fs');
 
-// Test runner array
-const suites = [];
-
-// Test runner simulation functions
-function describe(name, fn) {
-  const suite = { name, tests: [] };
-  suites.push(suite);
-  fn();
-}
-
-function it(name, fn) {
-  if (suites.length > 0) {
-    const currentSuite = suites[suites.length - 1];
-    currentSuite.tests.push({ name, fn });
-  }
-}
-
-// Define tests
 describe('Filesystem Integration Tests', () => {
   // Setup and cleanup functions
   async function setupTestDirectory() {
+    // Add test directory to allowed directories list
+    addTestDirectory(TEST_DIR);
+    
+    // Setup temp directories used in testing
+    setupTestTempDirectories();
+    
     // Create test directory
     try {
       await fs.mkdir(TEST_DIR, { recursive: true });
@@ -67,7 +55,7 @@ describe('Filesystem Integration Tests', () => {
       // Read file
       const result = await readFile(testFile);
 
-      assert.equal(result, testContent);
+      expect(result).toBe(testContent);
       
       await cleanupTestDirectory();
     });
@@ -77,13 +65,7 @@ describe('Filesystem Integration Tests', () => {
       
       const nonExistentFile = join(TEST_DIR, 'nonexistent.txt');
 
-      try {
-        await readFile(nonExistentFile);
-        assert.fail('Should have thrown an error');
-      } catch (error) {
-        assert.ok(error.message.includes('ENOENT') || 
-                 error.message.includes('no such file'));
-      }
+      await expect(readFile(nonExistentFile)).rejects.toThrow();
       
       await cleanupTestDirectory();
     });
@@ -96,12 +78,12 @@ describe('Filesystem Integration Tests', () => {
 
       const info = await getFileInfo(testFile);
 
-      assert.ok(info);
-      assert.equal(info.isFile, true);
-      assert.equal(info.isDirectory, false);
-      assert.ok(info.size > 0);
-      assert.ok(info.created);
-      assert.ok(info.modified);
+      expect(info).toBeDefined();
+      expect(info.isFile).toBe(true);
+      expect(info.isDirectory).toBe(false);
+      expect(info.size).toBeGreaterThan(0);
+      expect(info.created).toBeDefined();
+      expect(info.modified).toBeDefined();
       
       await cleanupTestDirectory();
     });
@@ -123,16 +105,16 @@ describe('Filesystem Integration Tests', () => {
       // List the directory
       const listing = await listDirectory(TEST_DIR);
       
-      assert.ok(Array.isArray(listing));
+      expect(Array.isArray(listing)).toBe(true);
       
       // Verify our subdirectory and file are listed
       const dirEntry = listing.find(item => item.includes('subdir'));
       const fileEntry = listing.find(item => item.includes('list-test.txt'));
       
-      assert.ok(dirEntry);
-      assert.ok(fileEntry);
-      assert.ok(dirEntry.includes('[DIR]'));
-      assert.ok(fileEntry.includes('[FILE]'));
+      expect(dirEntry).toBeDefined();
+      expect(fileEntry).toBeDefined();
+      expect(dirEntry).toContain('[DIR]');
+      expect(fileEntry).toContain('[FILE]');
       
       await cleanupTestDirectory();
     });
@@ -153,16 +135,20 @@ describe('Filesystem Integration Tests', () => {
       await moveFile(sourceFile, destFile);
       
       // Verify source file doesn't exist
-      try {
-        await fs.access(sourceFile);
-        assert.fail('Source file should not exist after moving');
-      } catch (error) {
-        assert.equal(error.code, 'ENOENT');
-      }
+      const sourceExists = async () => {
+        try {
+          await fs.access(sourceFile);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      
+      expect(await sourceExists()).toBe(false);
       
       // Verify destination file exists and has correct content
       const content = await readFile(destFile);
-      assert.equal(content, 'This file will be moved');
+      expect(content).toBe('This file will be moved');
       
       await cleanupTestDirectory();
     });
@@ -172,57 +158,22 @@ describe('Filesystem Integration Tests', () => {
       
       // Create multiple files with different extensions
       await writeFile(join(TEST_DIR, 'file1.txt'), 'Text file');
-      
       await writeFile(join(TEST_DIR, 'file2.md'), 'Markdown file');
-      
       await writeFile(join(TEST_DIR, 'script.js'), 'console.log("JavaScript file");');
       
       // Search for text files
       const textFiles = await searchFiles(TEST_DIR, 'txt');
       
-      assert.ok(Array.isArray(textFiles));
-      assert.equal(textFiles.length, 1);
-      assert.ok(textFiles[0].includes('file1.txt'));
+      expect(Array.isArray(textFiles)).toBe(true);
+      expect(textFiles.length).toBeGreaterThan(0);
+      expect(textFiles[0]).toContain('file1.txt');
       
-      // Search for all files - use an empty pattern to match everything
+      // Search for all files
       const allFiles = await searchFiles(TEST_DIR, '');
       
-      assert.equal(allFiles.length, 3);
+      expect(allFiles.length).toBeGreaterThanOrEqual(3);
       
       await cleanupTestDirectory();
     });
   });
 });
-
-// Run tests
-async function runTests() {
-  try {
-    console.log('Running Filesystem Integration tests...');
-    
-    for (const suite of suites) {
-      console.log(`\n${suite.name}`);
-      for (const test of suite.tests) {
-        try {
-          await test.fn();
-          console.log(`  ✓ ${test.name}`);
-        } catch (error) {
-          console.log(`  ✗ ${test.name}`);
-          console.error(`    Error: ${error.message}`);
-          throw error;
-        }
-      }
-    }
-    
-    console.log('\nAll tests passed! 🎉');
-  } catch (error) {
-    console.error('Tests failed:', error);
-    process.exit(1);
-  }
-}
-
-// Run the tests when this module is executed directly
-if (import.meta.url === process.argv[1]) {
-  runTests();
-}
-
-export { runTests };

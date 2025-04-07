@@ -40,6 +40,9 @@ export const ReadMultipleFilesArgsSchema = z.object({
 export const WriteFileArgsSchema = z.object({
   path: z.string(),
   content: z.string(),
+  options: z.object({
+    createDirectories: z.boolean().optional().default(false),
+  }).optional(),
 });
 
 export const CreateDirectoryArgsSchema = z.object({
@@ -67,29 +70,6 @@ export const GetFileInfoArgsSchema = z.object({
 // Edit tools schemas
 export const EditBlockArgsSchema = z.object({
   blockContent: z.string(),
-});
-
-// Multi-block editing schema
-export const MultiEditBlocksArgsSchema = z.object({
-  edits: z.array(
-    z.object({
-      filepath: z.string(),
-      operations: z.array(
-        z.object({
-          type: z.enum(['replace', 'insertBefore', 'insertAfter', 'prepend', 'append']),
-          search: z.string().optional(),
-          replace: z.string().optional(),
-          lineNumber: z.number().optional(),
-          content: z.string().optional(),
-        })
-      )
-    })
-  ),
-  options: z.object({
-    dryRun: z.boolean().optional().default(false),
-    caseSensitive: z.boolean().optional().default(true),
-    allOccurrences: z.boolean().optional().default(false),
-  }).optional(),
 });
 
 // Bulk file operations schemas

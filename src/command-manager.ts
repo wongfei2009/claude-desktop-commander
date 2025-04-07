@@ -1,6 +1,12 @@
 import fs from 'fs/promises';
 import { CONFIG_FILE } from './config.js';
 
+// Default blocked commands for security when config file cannot be loaded
+const DEFAULT_BLOCKED_COMMANDS = [
+  'format', 'mount', 'umount', 'mkfs', 'fdisk', 'dd',
+  'sudo', 'su', 'passwd', 'adduser', 'useradd', 'usermod', 'groupadd'
+];
+
 class CommandManager {
   private blockedCommands: Set<string> = new Set();
 
@@ -8,9 +14,46 @@ class CommandManager {
     try {
       const configData = await fs.readFile(CONFIG_FILE, 'utf-8');
       const config = JSON.parse(configData);
+      
+      if (!config.blockedCommands || !Array.isArray(config.blockedCommands)) {
+        const errorMsg = `Error: Invalid blockedCommands format in ${CONFIG_FILE}`;
+        process.stderr.write(JSON.stringify({
+          type: 'error',
+          timestamp: new Date().toISOString(),
+          message: errorMsg
+        }) + '\n');
+        
+        // Fall back to default blocked commands
+        this.blockedCommands = new Set(DEFAULT_BLOCKED_COMMANDS);
+        process.stderr.write(JSON.stringify({
+          type: 'warning',
+          timestamp: new Date().toISOString(),
+          message: `Using default blocked commands list as fallback`
+        }) + '\n');
+        return;
+      }
+      
       this.blockedCommands = new Set(config.blockedCommands);
+      process.stderr.write(JSON.stringify({
+        type: 'info',
+        timestamp: new Date().toISOString(),
+        message: `Successfully loaded ${this.blockedCommands.size} blocked commands from config`
+      }) + '\n');
     } catch (error) {
-      this.blockedCommands = new Set();
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      process.stderr.write(JSON.stringify({
+        type: 'error',
+        timestamp: new Date().toISOString(),
+        message: `Failed to load blocked commands from ${CONFIG_FILE}: ${errorMessage}`
+      }) + '\n');
+      
+      // Fall back to default blocked commands
+      this.blockedCommands = new Set(DEFAULT_BLOCKED_COMMANDS);
+      process.stderr.write(JSON.stringify({
+        type: 'warning',
+        timestamp: new Date().toISOString(),
+        message: `Using default blocked commands list as fallback`
+      }) + '\n');
     }
   }
 

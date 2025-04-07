@@ -1,27 +1,29 @@
-import { exec } from 'child_process';
+
 import { promisify } from 'util';
-import os from 'os';
+import { exec } from 'child_process';
+import psList from 'ps-list'; // Import ps-list package
 import { ProcessInfo } from '../types.js';
 import { KillProcessArgsSchema } from './schemas.js';
 
 const execAsync = promisify(exec);
 
+/**
+ * Lists running processes using cross-platform ps-list library
+ */
 export async function listProcesses(): Promise<{content: Array<{type: string, text: string}>}> {
-  const command = os.platform() === 'win32' ? 'tasklist' : 'ps aux';
   try {
-    const { stdout } = await execAsync(command);
-    const processes = stdout.split('\n')
-      .slice(1)
-      .filter(Boolean)
-      .map(line => {
-        const parts = line.split(/\s+/);
-        return {
-          pid: parseInt(parts[1]),
-          command: parts[parts.length - 1],
-          cpu: parts[2],
-          memory: parts[3],
-        } as ProcessInfo;
-      });
+    // Use ps-list to get processes in a cross-platform manner
+    const processList = await psList();
+    
+    // Convert to our ProcessInfo format
+    const processes = processList.map(proc => {
+      return {
+        pid: proc.pid,
+        command: proc.name || '[unknown]', // Ensure command name is never undefined
+        cpu: proc.cpu?.toString() || 'N/A',
+        memory: proc.memory?.toString() || 'N/A'
+      } as ProcessInfo;
+    });
 
     return {
       content: [{
@@ -32,12 +34,12 @@ export async function listProcesses(): Promise<{content: Array<{type: string, te
       }],
     };
   } catch (error) {
-    throw new Error('Failed to list processes');
+    console.error('Process listing error:', error);
+    throw new Error(`Failed to list processes: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
 export async function killProcess(args: unknown) {
-
   const parsed = KillProcessArgsSchema.safeParse(args);
   if (!parsed.success) {
     throw new Error(`Invalid arguments for kill_process: ${parsed.error}`);

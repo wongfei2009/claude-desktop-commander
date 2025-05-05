@@ -15,7 +15,6 @@ import {
   BlockCommandArgsSchema,
   UnblockCommandArgsSchema,
   ReadFileArgsSchema,
-  ReadMultipleFilesArgsSchema,
   WriteFileArgsSchema,
   CreateDirectoryArgsSchema,
   ListDirectoryArgsSchema,
@@ -23,17 +22,11 @@ import {
   SearchFilesArgsSchema,
   GetFileInfoArgsSchema,
   EditBlockArgsSchema,
-  BulkMoveFilesArgsSchema,
-  BulkCopyFilesArgsSchema,
-  BulkDeleteFilesArgsSchema,
-  BulkRenameFilesArgsSchema,
-  FindAndReplaceFilenamesArgsSchema,
 } from './tools/schemas.js';
 import { executeCommand, readOutput, forceTerminate, listSessions } from './tools/execute.js';
 import { listProcesses, killProcess } from './tools/process.js';
 import {
   readFile,
-  readMultipleFiles,
   writeFile,
   createDirectory,
   listDirectory,
@@ -41,11 +34,6 @@ import {
   searchFiles,
   getFileInfo,
   listAllowedDirectories,
-  bulkMoveFiles,
-  bulkCopyFiles,
-  bulkDeleteFiles,
-  bulkRenameFiles,
-  findAndReplaceFilenames,
 } from './tools/filesystem.js';
 import { parseEditBlock, performSearchReplace } from './tools/edit.js';
 
@@ -163,16 +151,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(ReadFileArgsSchema),
       },
       {
-        name: "desktop_fs_read_batch",
-        description:
-          "[Filesystem] Read the contents of multiple files simultaneously. " +
-          "Each file's content is returned with its path as a reference. " +
-          "Failed reads for individual files won't stop the entire operation. " +
-          "More efficient than multiple individual reads for analyzing multiple files. " +
-          "Only works within allowed directories. Example: {\"paths\": [\"/home/user/file1.txt\", \"/home/user/file2.txt\"]}",
-        inputSchema: zodToJsonSchema(ReadMultipleFilesArgsSchema),
-      },
-      {
         name: "desktop_fs_write",
         description:
           "[Filesystem] Completely replace file contents. Best for large changes (>20% of file) or when edit_block fails. " +
@@ -260,54 +238,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "- Always verify the file after edits to ensure no markers were accidentally left in the file",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
-      // Bulk file operations tools
-      {
-        name: "desktop_fs_move_batch",
-        description:
-          "[Filesystem] Move or rename multiple files in a single operation. More efficient than individual move operations " +
-          "for handling many files. Supports error handling (with skipErrors option), automatic directory " +
-          "creation, and detailed reporting. Both source and destination paths must be within allowed directories. " +
-          "Example: {\"operations\": [{\"source\": \"/path1\", \"destination\": \"/newpath1\"}, " +
-          "{\"source\": \"/path2\", \"destination\": \"/newpath2\"}]}",
-        inputSchema: zodToJsonSchema(BulkMoveFilesArgsSchema),
-      },
-      {
-        name: "desktop_fs_copy_batch",
-        description:
-          "[Filesystem] Copy multiple files in a single operation. Preserves original files while creating duplicates " +
-          "at new locations. Supports error handling (with skipErrors option), automatic directory creation, " +
-          "and detailed reporting. Both source and destination paths must be within allowed directories. " +
-          "Example: {\"operations\": [{\"source\": \"/path1\", \"destination\": \"/newpath1\"}, " +
-          "{\"source\": \"/path2\", \"destination\": \"/newpath2\"}]}",
-        inputSchema: zodToJsonSchema(BulkCopyFilesArgsSchema),
-      },
-      {
-        name: "desktop_fs_delete_batch",
-        description:
-          "[Filesystem] Delete multiple files in a single operation. USE WITH CAUTION as deleted files cannot be recovered. " +
-          "Supports recursive deletion (for directories), error handling, and detailed reporting. " +
-          "All paths must be within allowed directories. " +
-          "Example: {\"paths\": [\"/path/to/file1.txt\", \"/path/to/file2.txt\"], \"options\": {\"recursive\": false, \"skipErrors\": true}}",
-        inputSchema: zodToJsonSchema(BulkDeleteFilesArgsSchema),
-      },
-      {
-        name: "desktop_fs_rename_batch",
-        description:
-          "[Filesystem] Rename multiple files in a single operation. Changes filenames while keeping files in " +
-          "their original directories. Supports error handling, file extension preservation (by default), " +
-          "and detailed reporting. All files must be within allowed directories. " +
-          "Example: {\"operations\": [{\"source\": \"/path/file1.txt\", \"newName\": \"newfile1.txt\"}]}",
-        inputSchema: zodToJsonSchema(BulkRenameFilesArgsSchema),
-      },
-      {
-        name: "desktop_fs_rename_pattern",
-        description:
-          "[Filesystem] Search and replace text in multiple filenames. Useful for batch renaming files with " +
-          "similar naming patterns. Supports recursive directory traversal, regex patterns, case sensitivity, " +
-          "and dry runs (to preview changes before applying). All operations within allowed directories. " +
-          "Example: {\"directory\": \"/home/photos\", \"pattern\": \"IMG_\", \"replacement\": \"Vacation2023_\"}",
-        inputSchema: zodToJsonSchema(FindAndReplaceFilenamesArgsSchema),
-      },
     ],
   };
 });
@@ -383,13 +313,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           content: [{ type: "text", text: content }],
         };
       }
-      case "desktop_fs_read_batch": {
-        const parsed = ReadMultipleFilesArgsSchema.parse(args);
-        const results = await readMultipleFiles(parsed.paths);
-        return {
-          content: [{ type: "text", text: results.join("\n---\n") }],
-        };
-      }
       case "desktop_fs_write": {
         const parsed = WriteFileArgsSchema.parse(args);
         await writeFile(parsed.path, parsed.content, parsed.options);
@@ -444,102 +367,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
             type: "text", 
             text: `Allowed directories:\n${directories.join('\n')}` 
           }],
-        };
-      }
-      
-      // Bulk file operations tools
-      case "desktop_fs_move_batch": {
-        const parsed = BulkMoveFilesArgsSchema.parse(args);
-        const result = await bulkMoveFiles(parsed.operations, parsed.options);
-        
-        const summary = `Bulk move operation ${result.success ? 'completed successfully' : 'completed with errors'}
-Total: ${result.totalOperations}
-Successful: ${result.successfulOperations}
-Failed: ${result.failedOperations}
-
-Details:
-${result.details.join('\n')}`;
-        
-        return {
-          content: [{ type: "text", text: summary }],
-          isError: !result.success,
-        };
-      }
-      
-      case "desktop_fs_copy_batch": {
-        const parsed = BulkCopyFilesArgsSchema.parse(args);
-        const result = await bulkCopyFiles(parsed.operations, parsed.options);
-        
-        const summary = `Bulk copy operation ${result.success ? 'completed successfully' : 'completed with errors'}
-Total: ${result.totalOperations}
-Successful: ${result.successfulOperations}
-Failed: ${result.failedOperations}
-
-Details:
-${result.details.join('\n')}`;
-        
-        return {
-          content: [{ type: "text", text: summary }],
-          isError: !result.success,
-        };
-      }
-      
-      case "desktop_fs_delete_batch": {
-        const parsed = BulkDeleteFilesArgsSchema.parse(args);
-        const result = await bulkDeleteFiles(parsed.paths, parsed.options);
-        
-        const summary = `Bulk delete operation ${result.success ? 'completed successfully' : 'completed with errors'}
-Total: ${result.totalOperations}
-Successful: ${result.successfulOperations}
-Failed: ${result.failedOperations}
-
-Details:
-${result.details.join('\n')}`;
-        
-        return {
-          content: [{ type: "text", text: summary }],
-          isError: !result.success,
-        };
-      }
-      
-      case "desktop_fs_rename_batch": {
-        const parsed = BulkRenameFilesArgsSchema.parse(args);
-        const result = await bulkRenameFiles(parsed.operations, parsed.options);
-        
-        const summary = `Bulk rename operation ${result.success ? 'completed successfully' : 'completed with errors'}
-Total: ${result.totalOperations}
-Successful: ${result.successfulOperations}
-Failed: ${result.failedOperations}
-
-Details:
-${result.details.join('\n')}`;
-        
-        return {
-          content: [{ type: "text", text: summary }],
-          isError: !result.success,
-        };
-      }
-      
-      case "desktop_fs_rename_pattern": {
-        const parsed = FindAndReplaceFilenamesArgsSchema.parse(args);
-        const result = await findAndReplaceFilenames(
-          parsed.directory,
-          parsed.pattern,
-          parsed.replacement,
-          parsed.options
-        );
-        
-        const summary = `Find and replace filename operation ${result.success ? 'completed successfully' : 'completed with errors'}${parsed.options?.dryRun ? ' (DRY RUN)' : ''}
-Total: ${result.totalOperations}
-Successful: ${result.successfulOperations}
-Failed: ${result.failedOperations}
-
-Details:
-${result.details.join('\n')}`;
-        
-        return {
-          content: [{ type: "text", text: summary }],
-          isError: !result.success,
         };
       }
       

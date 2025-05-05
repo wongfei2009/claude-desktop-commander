@@ -195,9 +195,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "desktop_fs_edit_block",
         description:
             "[Filesystem] Apply precise text replacements to files. Best for small to moderate changes (<20% of file size). " +
-            "Verifies changes succeeded after application and provides detailed results. " +
+            "Verifies changes succeeded after application and provides detailed results. Now with enhanced fuzzy matching! " +
             "\n\nFormat requirements:\n" +
-            "1. First line: Full path to the file\n" +
+            "1. First line: Full path to the file, optionally followed by '::N' where N is the number of expected replacements\n" +
+            "   Example: '/path/to/file.txt::3' means expect 3 replacements\n" +
             "2. Second line: The exact string <<<<<<< SEARCH\n" +
             "3. Next lines: The exact text to find (must match exactly, including whitespace)\n" +
             "4. Next line: The exact string =======\n" +
@@ -209,8 +210,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             "- Keep search blocks as short as possible while ensuring uniqueness\n" +
             "- Include enough context to ensure correct placement\n" +
             "- For multiple edits to the same file, use separate function calls to avoid errors\n" +
-            "- IMPORTANT: Neither the search nor replace text should contain the marker strings (<<<<<<< SEARCH, =======, >>>>>>> REPLACE)\n" +
-            "- Always verify the file after edits to ensure no markers were accidentally left in the file",
+            "- IMPORTANT: Neither the search nor replace text should contain the marker strings\n" +
+            "- Always verify the file after edits to ensure no markers were accidentally left in the file\n" +
+            "- When text appears multiple times and you want to replace all instances, add the expected count (e.g., '/path/to/file.txt::5')\n" +
+            "- For safety, the default behavior is to only replace when exactly one match is found\n" +
+            "- If an exact match isn't found, the tool now provides better suggestions using fuzzy matching",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
       },
     ],
@@ -250,8 +254,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
       // Filesystem tools
       case "desktop_fs_edit_block": {
         const parsed = EditBlockArgsSchema.parse(args);
-        const { filePath, searchReplace } = await parseEditBlock(parsed.blockContent);
-        const result = await performSearchReplace(filePath, searchReplace);
+        const { filePath, searchReplace, expectedReplacements } = await parseEditBlock(parsed.blockContent);
+        const result = await performSearchReplace(filePath, searchReplace, expectedReplacements);
         
         // Return more detailed information about the operation
         let responseText = result.message;

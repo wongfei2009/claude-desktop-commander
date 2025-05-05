@@ -12,8 +12,6 @@ import {
   ForceTerminateArgsSchema,
   ListSessionsArgsSchema,
   KillProcessArgsSchema,
-  BlockCommandArgsSchema,
-  UnblockCommandArgsSchema,
   ReadFileArgsSchema,
   WriteFileArgsSchema,
   CreateDirectoryArgsSchema,
@@ -114,32 +112,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "that are unresponsive or causing problems. Example: {\"pid\": 1234}",
         inputSchema: zodToJsonSchema(KillProcessArgsSchema),
       },
-      {
-        name: "desktop_cmd_block",
-        description:
-          "Add a command to the blacklist. Once blocked, the command cannot be executed until unblocked. " +
-          "Useful for preventing potentially dangerous commands from being run. Example: {\"command\": \"rm -rf\"}",
-        inputSchema: zodToJsonSchema(BlockCommandArgsSchema),
-      },
-      {
-        name: "desktop_cmd_unblock",
-        description:
-          "Remove a command from the blacklist. Once unblocked, the command can be executed normally. " +
-          "Use this to restore functionality for commands that were previously blocked. Example: {\"command\": \"rm -rf\"}",
-        inputSchema: zodToJsonSchema(UnblockCommandArgsSchema),
-      },
-      {
-        name: "desktop_cmd_list_blocked",
-        description:
-          "List all currently blocked commands. Returns a newline-separated list of commands " +
-          "that have been blocked using desktop_cmd_block. Useful for reviewing " +
-          "security restrictions before executing commands.",
-        inputSchema: {
-          type: "object",
-          properties: {},
-          required: [],
-        },
-      },
+      // Command blocking tools removed as they're more administrative in nature
+      // The server will still block dangerous commands internally
+      
       // Filesystem tools
       {
         name: "desktop_fs_read",
@@ -268,26 +243,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         const parsed = KillProcessArgsSchema.parse(args);
         return killProcess(parsed);
       }
-      case "desktop_cmd_block": {
-        const parsed = BlockCommandArgsSchema.parse(args);
-        const blockResult = await commandManager.blockCommand(parsed.command);
-        return {
-          content: [{ type: "text", text: blockResult }],
-        };
-      }
-      case "desktop_cmd_unblock": {
-        const parsed = UnblockCommandArgsSchema.parse(args);
-        const unblockResult = await commandManager.unblockCommand(parsed.command);
-        return {
-          content: [{ type: "text", text: unblockResult }],
-        };
-      }
-      case "desktop_cmd_list_blocked": {
-        const blockedCommands = await commandManager.listBlockedCommands();
-        return {
-          content: [{ type: "text", text: blockedCommands.join('\n') }],
-        };
-      }
+      
+      // Command blocking tools removed
+      // Internal command validation still happens in executeCommand
       
       // Filesystem tools
       case "desktop_fs_edit_block": {

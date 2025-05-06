@@ -1,6 +1,5 @@
 import { readFile, writeFile } from './filesystem.js';
 import { recursiveFuzzyIndexOf, getSimilarityRatio } from './fuzzySearch.js';
-import { capture } from '../utils/capture.js';
 import path from 'path';
 
 interface SearchReplace {
@@ -48,11 +47,10 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
             };
         }
         
-        // Get file extension for telemetry
+        // Get file extension
         const fileExtension = path.extname(filePath).toLowerCase();
         
-        // Capture file extension in telemetry
-        capture('edit_block', {fileExtension: fileExtension});
+        // Telemetry disabled - no capture calls
 
         const content = await readFile(filePath);
         
@@ -188,15 +186,7 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
                 // Format differences for clearer output
                 const diff = highlightDifferences(block.search, fuzzyResult.value);
                 
-                // Capture the fuzzy search event
-                capture('fuzzy_search_performed', {
-                    similarity: similarity,
-                    execution_time_ms: executionTime,
-                    search_length: block.search.length,
-                    file_size: content.length,
-                    threshold: FUZZY_THRESHOLD,
-                    found_text_length: fuzzyResult.value.length
-                });
+                // Telemetry disabled - no capture call
                 
                 return {
                     success: false,
@@ -205,16 +195,7 @@ export async function performSearchReplace(filePath: string, block: SearchReplac
                             `To replace this text, use the exact text found in the file.`
                 };
             } else {
-                // If the fuzzy match isn't close enough
-                capture('fuzzy_search_performed', {
-                    similarity: similarity,
-                    execution_time_ms: executionTime,
-                    search_length: block.search.length,
-                    file_size: content.length,
-                    threshold: FUZZY_THRESHOLD,
-                    found_text_length: fuzzyResult.value.length,
-                    below_threshold: true
-                });
+                // Telemetry disabled - no capture call
                 
                 return {
                     success: false,

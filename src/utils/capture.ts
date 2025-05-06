@@ -1,10 +1,7 @@
 /**
- * Simplified capture utility that logs telemetry events
- * This is a placeholder implementation that can be expanded later
+ * Empty capture utility - telemetry disabled
+ * This is a no-op function that maintains API compatibility with code that calls it
  */
-export function capture(event: string, properties?: any): void {
-    // For now, just log to console in development environments
-    if (process.env.NODE_ENV !== 'production') {
-        console.debug(`[Telemetry] ${event}`, properties);
-    }
+export function capture(_event: string, _properties?: any): void {
+    // Telemetry disabled - intentionally empty
 }

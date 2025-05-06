@@ -149,14 +149,16 @@ Changed line
       expect(result.success).toBe(true);
       expect(result.matchCount).toBe(3); // Should find 3 occurrences total
       
-      // Verify only the first occurrence was replaced
+      // Verify all occurrences were replaced (default behavior)
       const fileContent = await readFile(TEST_FILE);
       expect(fileContent).toContain('Changed line');
-      expect(fileContent).toContain('Duplicate line: test');
       
-      // Count the remaining occurrences (should be 2)
-      const matches = fileContent.match(/Duplicate line: test/g);
-      expect(matches).toHaveLength(2);
+      // Count the occurrences of the replaced text (should be 3)
+      const changedMatches = fileContent.match(/Changed line/g);
+      expect(changedMatches).toHaveLength(3);
+      
+      // Ensure original text was completely replaced
+      expect(fileContent).not.toContain('Duplicate line: test');
     });
   });
 });

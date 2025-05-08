@@ -33,9 +33,7 @@ export const ReadFileArgsSchema = z.object({
   path: z.string(),
 });
 
-export const ReadMultipleFilesArgsSchema = z.object({
-  paths: z.array(z.string()),
-});
+// Removed multi-file reading schema
 
 export const WriteFileArgsSchema = z.object({
   path: z.string(),
@@ -72,68 +70,4 @@ export const EditBlockArgsSchema = z.object({
   blockContent: z.string(),
 });
 
-// Bulk file operations schemas
-export const BulkMoveFilesArgsSchema = z.object({
-  operations: z.array(
-    z.object({
-      source: z.string(),
-      destination: z.string(),
-    })
-  ),
-  options: z.object({
-    createDirectories: z.boolean().optional().default(true),
-    skipErrors: z.boolean().optional().default(false),
-    overwrite: z.boolean().optional().default(false),
-  }).optional(),
-});
-
-export const BulkCopyFilesArgsSchema = z.object({
-  operations: z.array(
-    z.object({
-      source: z.string(),
-      destination: z.string(),
-    })
-  ),
-  options: z.object({
-    createDirectories: z.boolean().optional().default(true),
-    skipErrors: z.boolean().optional().default(false),
-    overwrite: z.boolean().optional().default(false),
-  }).optional(),
-});
-
-export const BulkDeleteFilesArgsSchema = z.object({
-  paths: z.array(z.string()),
-  options: z.object({
-    recursive: z.boolean().optional().default(false),
-    skipErrors: z.boolean().optional().default(false),
-  }).optional(),
-});
-
-export const BulkRenameFilesArgsSchema = z.object({
-  operations: z.array(
-    z.object({
-      source: z.string(),
-      newName: z.string(),
-    })
-  ),
-  options: z.object({
-    skipErrors: z.boolean().optional().default(false),
-    overwrite: z.boolean().optional().default(false),
-    preserveExtension: z.boolean().optional().default(true),
-  }).optional(),
-});
-
-export const FindAndReplaceFilenamesArgsSchema = z.object({
-  directory: z.string(),
-  pattern: z.string(),
-  replacement: z.string(),
-  options: z.object({
-    recursive: z.boolean().optional().default(false),
-    regex: z.boolean().optional().default(false),
-    caseSensitive: z.boolean().optional().default(true),
-    skipErrors: z.boolean().optional().default(false),
-    overwrite: z.boolean().optional().default(false),
-    dryRun: z.boolean().optional().default(false),
-    preserveExtension: z.boolean().optional().default(true),
-  }).optional(),
-});
+// Bulk file operations schemas removed

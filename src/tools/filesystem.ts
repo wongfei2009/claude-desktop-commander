@@ -1,5 +1,5 @@
 import * as fs from "fs/promises";
-import { readdirSync } from "fs";
+import { readdirSync, existsSync } from "fs";
 import path from "path";
 import os from 'os';
 
@@ -187,8 +187,35 @@ export async function validatePath(requestedPath: string): Promise<string> {
                 // More detailed error for tests
                 console.error(`Parent directory error: ${parentDir}`, error);
             }
-            throw new Error(`Directory does not exist: ${parentDir}. Create it first or use createDirectories option.`);
+            throw new Error(`Directory does not exist: ${parentDir}. Create it first.`);
         }
+    }
+}
+
+/**
+ * Recursively validates parent directories until it finds a valid one
+ * 
+ * @param directoryPath The path to validate
+ * @returns Promise<boolean> True if a valid parent directory was found
+ */
+async function validateParentDirectories(directoryPath: string): Promise<boolean> {
+    const parentDir = path.dirname(directoryPath);
+    
+    // Base case: we've reached the root or the same directory
+    if (parentDir === directoryPath || parentDir === path.dirname(parentDir)) {
+        return false;
+    }
+
+    try {
+        // Check if the parent directory exists
+        if (existsSync(parentDir)) {
+            return true;
+        }
+        // Parent doesn't exist, recursively check its parent
+        return validateParentDirectories(parentDir);
+    } catch {
+        // Error checking parent, recursively check its parent
+        return validateParentDirectories(parentDir);
     }
 }
 
@@ -200,21 +227,28 @@ export async function readFile(filePath: string): Promise<string> {
 
 import { randomUUID } from 'crypto';
 
-export async function writeFile(
-    filePath: string, 
-    content: string, 
-    options: { createDirectories?: boolean } = {}
-): Promise<void> {
+/**
+ * Writes content to a file with improved error handling
+ * Parent directories are automatically created if they don't exist
+ * 
+ * @param filePath Path to the file to write
+ * @param content Content to write to the file
+ */
+export async function writeFile(filePath: string, content: string): Promise<void> {
     try {
         const validPath = await validatePath(filePath);
         const directory = path.dirname(validPath);
         
-        // Create directory if needed and requested
-        if (options.createDirectories) {
-            try {
-                await fs.access(directory);
-            } catch {
+        // Check if directory exists
+        if (!existsSync(directory)) {
+            // Try to find a valid parent directory
+            const hasValidParent = await validateParentDirectories(directory);
+            
+            if (hasValidParent) {
+                // Create the necessary directories
                 await fs.mkdir(directory, { recursive: true });
+            } else {
+                throw new Error(`Could not find any valid parent directory for ${filePath}`);
             }
         }
         
@@ -234,20 +268,29 @@ export async function writeFile(
             } catch {
                 // Ignore errors during cleanup
             }
-            throw error;
+            
+            // Provide more specific error messages based on error type
+            if (error instanceof Error) {
+                if (error.message.includes('ENOSPC')) {
+                    throw new Error(`Not enough disk space to write file: ${filePath}`);
+                } else if (error.message.includes('EACCES')) {
+                    throw new Error(`Permission denied: Cannot write to ${filePath}`);
+                } else if (error.message.includes('EROFS')) {
+                    throw new Error(`File system is read-only: Cannot write to ${filePath}`);
+                } else {
+                    throw error; // Re-throw original error for other cases
+                }
+            } else {
+                throw error;
+            }
         }
     } catch (error) {
         if (error instanceof Error) {
-            if (error.message.includes('ENOENT') || error.message.includes('does not exist')) {
-                throw new Error(`Directory does not exist for file: ${filePath}. Use createDirectories option to create it automatically.`);
-            }
             throw error;
         }
         throw new Error(`Unknown error writing file: ${filePath}`);
     }
 }
-
-// readMultipleFiles function removed
 
 export async function createDirectory(dirPath: string): Promise<void> {
     const validPath = await validatePath(dirPath);

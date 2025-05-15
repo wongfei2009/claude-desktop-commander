@@ -33,14 +33,10 @@ export const ReadFileArgsSchema = z.object({
   path: z.string(),
 });
 
-// Removed multi-file reading schema
-
+// Simplified WriteFileArgsSchema - removed nested options object
 export const WriteFileArgsSchema = z.object({
   path: z.string(),
   content: z.string(),
-  options: z.object({
-    createDirectories: z.boolean().optional().default(false),
-  }).optional(),
 });
 
 export const CreateDirectoryArgsSchema = z.object({
@@ -65,9 +61,10 @@ export const GetFileInfoArgsSchema = z.object({
   path: z.string(),
 });
 
-// Edit tools schemas
+// Updated Edit tools schemas with support for expected replacements
 export const EditBlockArgsSchema = z.object({
   blockContent: z.string(),
+  expectedReplacements: z.number().optional(),
 });
 
 // Bulk file operations schemas removed

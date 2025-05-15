@@ -292,6 +292,62 @@ export async function writeFile(filePath: string, content: string): Promise<void
     }
 }
 
+/**
+ * Writes a chunk of content to a file, useful for handling large files
+ * that exceed message size limits
+ * 
+ * @param filePath Path to the file to write
+ * @param chunk Content chunk to write
+ * @param chunkIndex Index of this chunk (0-based)
+ * @param totalChunks Total number of chunks expected
+ * @param isAppend Whether to append to the file or overwrite (default: true)
+ */
+export async function writeFileChunk(
+    filePath: string, 
+    chunk: string, 
+    chunkIndex: number, 
+    totalChunks: number,
+    isAppend: boolean = true
+): Promise<void> {
+    try {
+        const validPath = await validatePath(filePath);
+        const directory = path.dirname(validPath);
+        
+        // Ensure directory exists
+        if (!existsSync(directory)) {
+            const hasValidParent = await validateParentDirectories(directory);
+            if (hasValidParent) {
+                await fs.mkdir(directory, { recursive: true });
+            } else {
+                throw new Error(`Could not find any valid parent directory for ${filePath}`);
+            }
+        }
+        
+        // If this is the first chunk and we're not appending, we need to create or truncate the file
+        if (chunkIndex === 0 && !isAppend) {
+            await fs.writeFile(validPath, chunk, "utf-8");
+        } else {
+            // Otherwise, append the chunk to the file
+            await fs.appendFile(validPath, chunk, "utf-8");
+        }
+        
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes('ENOSPC')) {
+                throw new Error(`Not enough disk space to write file: ${filePath}`);
+            } else if (error.message.includes('EACCES')) {
+                throw new Error(`Permission denied: Cannot write to ${filePath}`);
+            } else if (error.message.includes('EROFS')) {
+                throw new Error(`File system is read-only: Cannot write to ${filePath}`);
+            } else {
+                throw error;
+            }
+        } else {
+            throw new Error(`Unknown error writing file chunk to ${filePath}`);
+        }
+    }
+}
+
 export async function createDirectory(dirPath: string): Promise<void> {
     const validPath = await validatePath(dirPath);
     await fs.mkdir(validPath, { recursive: true });

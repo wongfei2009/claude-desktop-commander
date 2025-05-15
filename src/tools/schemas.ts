@@ -39,6 +39,15 @@ export const WriteFileArgsSchema = z.object({
   content: z.string(),
 });
 
+// Schema for chunked file writing to handle large files
+export const WriteFileChunkArgsSchema = z.object({
+  path: z.string(),
+  chunk: z.string(),
+  chunkIndex: z.number(),
+  totalChunks: z.number(),
+  isAppend: z.boolean().optional().default(true),
+});
+
 export const CreateDirectoryArgsSchema = z.object({
   path: z.string(),
 });

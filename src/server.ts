@@ -14,6 +14,7 @@ import {
   KillProcessArgsSchema,
   ReadFileArgsSchema,
   WriteFileArgsSchema,
+  WriteFileChunkArgsSchema,
   CreateDirectoryArgsSchema,
   ListDirectoryArgsSchema,
   MoveFileArgsSchema,
@@ -26,6 +27,7 @@ import { listProcesses, killProcess } from './tools/process.js';
 import {
   readFile,
   writeFile,
+  writeFileChunk,
   createDirectory,
   listDirectory,
   moveFile,
@@ -133,6 +135,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Use with caution as it will overwrite existing files. Creates new files if they don't exist. " +
           "Only works within allowed directories. Example: {\"path\": \"/home/user/file.txt\", \"content\": \"New file content here\"}",
         inputSchema: zodToJsonSchema(WriteFileArgsSchema),
+      },
+      {
+        name: "desktop_fs_write_chunk",
+        description:
+          "[Filesystem] Write a chunk of a file, useful for very large files that exceed message size limits. " +
+          "Breaks file writing into sequential chunks that can be processed separately. Use when regular write_file fails with large content. " +
+          "Parameters: path (file path), chunk (content piece), chunkIndex (0-based position), totalChunks (expected total), isAppend (default: true). " +
+          "Example: {\"path\": \"/home/user/large-file.txt\", \"chunk\": \"content part 1\", \"chunkIndex\": 0, \"totalChunks\": 3, \"isAppend\": false}",
+        inputSchema: zodToJsonSchema(WriteFileChunkArgsSchema),
       },
       {
         name: "desktop_fs_mkdir",
@@ -279,6 +290,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         await writeFile(parsed.path, parsed.content);
         return {
           content: [{ type: "text", text: `Successfully wrote to ${parsed.path}` }],
+        };
+      }
+      case "desktop_fs_write_chunk": {
+        const parsed = WriteFileChunkArgsSchema.parse(args);
+        await writeFileChunk(parsed.path, parsed.chunk, parsed.chunkIndex, parsed.totalChunks, parsed.isAppend);
+        
+        // Provide more detailed response about the progress
+        const progressMessage = parsed.chunkIndex === parsed.totalChunks - 1 
+          ? `Successfully completed writing file: ${parsed.path}` 
+          : `Successfully wrote chunk ${parsed.chunkIndex + 1}/${parsed.totalChunks} to ${parsed.path}`;
+        
+        return {
+          content: [{ type: "text", text: progressMessage }],
         };
       }
       case "desktop_fs_mkdir": {
